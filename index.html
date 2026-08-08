@@ -72,19 +72,14 @@
     .menu-step { display: none; }
     .menu-step.active { display: block; }
     #playerSetupPanel, #activePlayerPanel { margin: 4px 0 16px; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.14); }
-    #playerSetupPanel label { margin-bottom: 10px; }
-    #playerSelect { min-width: 150px; max-width: 220px; padding: 5px; }
+    #playerSetupPanel p { margin: 0 0 14px; font-size: 14px; color: rgba(255,255,255,0.78); }
     #playerNameInput { min-height: 36px; width: min(100%, 220px); padding: 7px 9px; border: 1px solid rgba(255,255,255,0.28); border-radius: 8px; background: rgba(255,255,255,0.94); color: #111827; font-size: 14px; box-sizing: border-box; }
-    #newPlayerRow { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+    #createPlayerRow { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
     .playerActions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
     .playerActions button { min-height: 38px; padding: 8px 12px; border: 0; border-radius: 8px; color: white; cursor: pointer; font-weight: 700; transition: background-color 0.2s ease, transform 0.1s ease; }
     #currentPlayerName { display: block; margin-bottom: 10px; font-size: 17px; font-weight: 700; color: #ffffff; }
-    #addPlayerBtn { background: #2176d2; }
-    #addPlayerBtn:hover { background: #2f88ed; }
-    #continuePlayerBtn { background: #24a35a; }
-    #continuePlayerBtn:hover { background: #2fbf69; }
-    #changePlayerBtn { background: #475569; }
-    #changePlayerBtn:hover { background: #64748b; }
+    #createPlayerBtn { background: #24a35a; }
+    #createPlayerBtn:hover { background: #2fbf69; }
     #resetPlayerBtn { background: #8b2f2f; }
     #resetPlayerBtn:hover { background: #a23a3a; }
     .playerActions button:active { transform: scale(0.98); }
@@ -187,7 +182,7 @@
         #settings label { font-size: 15px; }
         #settings select, #settings input[type="checkbox"] { font-size: 14px; }
         #playerSetupPanel, #activePlayerPanel { padding: 10px; }
-        #newPlayerRow { gap: 8px; }
+        #createPlayerRow { gap: 8px; }
         #playerNameInput { flex: 1 1 150px; }
         .playerActions button { flex: 1 1 120px; }
         #progressionPanel { padding: 12px; }
@@ -289,21 +284,17 @@
   <div id="coverMessage">Welcome to GeoSpot!</div>
   <div id="settings">
     <div id="playerSetupPanel" class="menu-step active">
-      <h2 class="menu-step-title">Who's playing?</h2>
-      <label> Player: <select id="playerSelect" aria-label="Player"></select> </label>
-      <div id="newPlayerRow">
-        <input id="playerNameInput" type="text" maxlength="24" placeholder="New player name" aria-label="New player name">
-        <button id="addPlayerBtn" type="button">New Player</button>
-      </div>
-      <div class="playerActions">
-        <button id="continuePlayerBtn" type="button">Continue</button>
+      <h2 class="menu-step-title">Create your player</h2>
+      <p>Enter your name once. GeoSpot will remember you and keep your progress on this device.</p>
+      <div id="createPlayerRow">
+        <input id="playerNameInput" type="text" maxlength="24" placeholder="Your name" aria-label="Your name" autocomplete="name">
+        <button id="createPlayerBtn" type="button">Create Player</button>
       </div>
     </div>
     <div id="gameMenuPanel" class="menu-step">
       <div id="activePlayerPanel">
         <span id="currentPlayerName">Playing as Player 1</span>
         <div class="playerActions">
-          <button id="changePlayerBtn" type="button">Change Player</button>
           <button id="resetPlayerBtn" type="button">Reset Score</button>
         </div>
       </div>
@@ -362,6 +353,7 @@
   const LOCAL_STORAGE_PROGRESS_KEY = 'geospot_progress';
   const LOCAL_STORAGE_PLAYERS_KEY = 'geospot_players';
   const LOCAL_STORAGE_CURRENT_PLAYER_KEY = 'geospot_current_player';
+  const LOCAL_STORAGE_PLAYER_INITIALIZED_KEY = 'geospot_player_initialized';
   const LOCAL_STORAGE_SETTINGS_KEY = 'geospot_settings';
   const DEFAULT_PLAYER_NAME = 'Player 1';
   const DIFFICULTY_SECONDS = { easy: 30, medium: 20, hard: 15, expert: 10 };
@@ -485,8 +477,8 @@
   // --- MAP & GAME STATE ---
   let map;
   let progressionTitleEl, progressionXpEl, progressFillEl, progressionNoteEl,
-      playerSetupPanelEl, gameMenuPanelEl, playerSelectEl, playerNameInputEl,
-      addPlayerBtn, continuePlayerBtn, changePlayerBtn, resetPlayerBtn, currentPlayerNameEl;
+      playerSetupPanelEl, gameMenuPanelEl, playerNameInputEl,
+      createPlayerBtn, resetPlayerBtn, currentPlayerNameEl;
   const game = {
     currentMode: 'menu', // 'menu', 'quiz', 'tracker'
     countriesGeoJson: null, countryFeaturesMap: new Map(), currentCountry: null,
@@ -498,6 +490,7 @@
     visitedCountries: new Set(),
     wishlistCountries: new Set(),
     currentPlayer: DEFAULT_PLAYER_NAME,
+    hasPlayerProfile: false,
     players: {},
     progress: { xp: 0, bestScore: 0, gamesPlayed: 0, lastGain: 0 }
   };
@@ -579,8 +572,7 @@
   function showPlayerSetup() {
       playerSetupPanelEl?.classList.add('active');
       gameMenuPanelEl?.classList.remove('active');
-      refreshPlayerSelect();
-      updatePlayerMenuUI();
+      playerNameInputEl?.focus();
   }
 
   function showGameMenu() {
@@ -608,28 +600,11 @@
       return safeName || DEFAULT_PLAYER_NAME;
   }
 
-  function getUniquePlayerName(baseName) {
-      const base = getSafePlayerName(baseName);
-      if (!game.players[base]) return base;
-      let index = 2;
-      while (game.players[`${base} ${index}`]) index++;
-      return `${base} ${index}`;
-  }
-
-  function refreshPlayerSelect() {
-      if (!playerSelectEl) return;
-      playerSelectEl.innerHTML = '';
-      Object.keys(game.players).sort((a, b) => a.localeCompare(b)).forEach(name => {
-          const option = document.createElement('option');
-          option.value = name;
-          option.innerText = name;
-          playerSelectEl.appendChild(option);
-      });
-      playerSelectEl.value = game.currentPlayer;
-  }
-
   function saveCurrentPlayerName() {
-      try { localStorage.setItem(LOCAL_STORAGE_CURRENT_PLAYER_KEY, game.currentPlayer); }
+      try {
+          localStorage.setItem(LOCAL_STORAGE_CURRENT_PLAYER_KEY, game.currentPlayer);
+          localStorage.setItem(LOCAL_STORAGE_PLAYER_INITIALIZED_KEY, 'true');
+      }
       catch (e) { console.error("Error saving current player:", e); }
   }
 
@@ -646,29 +621,37 @@
               });
           }
 
-          if (Object.keys(game.players).length === 0) {
+          const savedNameValue = localStorage.getItem(LOCAL_STORAGE_CURRENT_PLAYER_KEY);
+          const savedPlayer = getSafePlayerName(savedNameValue);
+          const explicitlyInitialized = localStorage.getItem(LOCAL_STORAGE_PLAYER_INITIALIZED_KEY) === 'true';
+          const hasLegacyNamedPlayer = Boolean(savedNameValue && savedPlayer !== DEFAULT_PLAYER_NAME && game.players[savedPlayer]);
+          game.hasPlayerProfile = explicitlyInitialized || hasLegacyNamedPlayer;
+
+          if (game.hasPlayerProfile) {
+              game.currentPlayer = savedPlayer;
+              game.progress = normalizeProgress(game.players[savedPlayer]);
+              game.players = { [savedPlayer]: game.progress };
+          } else {
               const oldData = localStorage.getItem(LOCAL_STORAGE_PROGRESS_KEY);
               const oldProgress = oldData ? JSON.parse(oldData) : {};
-              game.players[DEFAULT_PLAYER_NAME] = normalizeProgress(oldProgress);
+              game.currentPlayer = DEFAULT_PLAYER_NAME;
+              game.progress = normalizeProgress(game.players[DEFAULT_PLAYER_NAME] || oldProgress);
+              game.players = {};
           }
-
-          const savedPlayer = getSafePlayerName(localStorage.getItem(LOCAL_STORAGE_CURRENT_PLAYER_KEY));
-          game.currentPlayer = game.players[savedPlayer] ? savedPlayer : Object.keys(game.players)[0];
-          game.progress = normalizeProgress(game.players[game.currentPlayer]);
       } catch (e) {
           console.error("Error loading progression data:", e);
           game.currentPlayer = DEFAULT_PLAYER_NAME;
-          game.players = { [DEFAULT_PLAYER_NAME]: getDefaultProgress() };
+          game.hasPlayerProfile = false;
+          game.players = {};
           game.progress = getDefaultProgress();
       }
-      saveProgressionData();
-      refreshPlayerSelect();
       updateProgressionUI();
   }
 
   function saveProgressionData() {
+      if (!game.hasPlayerProfile) return;
       try {
-          game.players[game.currentPlayer] = normalizeProgress(game.progress);
+          game.players = { [game.currentPlayer]: normalizeProgress(game.progress) };
           localStorage.setItem(LOCAL_STORAGE_PLAYERS_KEY, JSON.stringify(game.players));
           saveCurrentPlayerName();
           localStorage.setItem(LOCAL_STORAGE_PROGRESS_KEY, JSON.stringify({
@@ -681,48 +664,28 @@
       }
   }
 
-  function switchPlayer(playerName) {
-      const safeName = getSafePlayerName(playerName);
-      if (!game.players[safeName]) return;
-      saveProgressionData();
-      game.currentPlayer = safeName;
-      game.progress = normalizeProgress(game.players[safeName]);
-      saveProgressionData();
-      refreshPlayerSelect();
-      updateProgressionUI();
-      updateCountryLabelVisibility();
-  }
-
-  function createPlayer(showMenuAfterCreate = true) {
-      const enteredName = playerNameInputEl?.value || `Player ${Object.keys(game.players).length + 1}`;
-      const newName = getUniquePlayerName(enteredName);
-      game.players[newName] = getDefaultProgress();
-      game.currentPlayer = newName;
-      game.progress = getDefaultProgress();
-      if (playerNameInputEl) playerNameInputEl.value = '';
-      saveProgressionData();
-      refreshPlayerSelect();
-      updateProgressionUI('New player ready. Score starts at 0.');
-      updateCountryLabelVisibility();
-      if (showMenuAfterCreate) showGameMenu();
-  }
-
-  function continueWithPlayer() {
+  function createPlayer() {
       const enteredName = playerNameInputEl?.value.trim();
-      if (enteredName) {
-          createPlayer(true);
+      if (!enteredName) {
+          playerNameInputEl?.focus();
           return;
       }
-      switchPlayer(playerSelectEl.value);
+      const newName = getSafePlayerName(enteredName);
+      game.currentPlayer = newName;
+      game.hasPlayerProfile = true;
+      game.players = { [newName]: normalizeProgress(game.progress) };
+      if (playerNameInputEl) playerNameInputEl.value = '';
+      saveProgressionData();
+      updateProgressionUI('Your personal progress is ready.');
+      updateCountryLabelVisibility();
       showGameMenu();
   }
 
   function resetCurrentPlayerProgress() {
       if (!confirm(`Reset ${game.currentPlayer}'s score and progression to zero?`)) return;
       game.progress = getDefaultProgress();
-      game.players[game.currentPlayer] = getDefaultProgress();
+      game.players = { [game.currentPlayer]: getDefaultProgress() };
       saveProgressionData();
-      refreshPlayerSelect();
       updateProgressionUI('Score reset to 0 for this player.');
       updateCountryLabelVisibility();
   }
@@ -1254,16 +1217,13 @@
           progressionNoteEl = document.getElementById('progressionNote');
           playerSetupPanelEl = document.getElementById('playerSetupPanel');
           gameMenuPanelEl = document.getElementById('gameMenuPanel');
-          playerSelectEl = document.getElementById('playerSelect');
           playerNameInputEl = document.getElementById('playerNameInput');
-          addPlayerBtn = document.getElementById('addPlayerBtn');
-          continuePlayerBtn = document.getElementById('continuePlayerBtn');
-          changePlayerBtn = document.getElementById('changePlayerBtn');
+          createPlayerBtn = document.getElementById('createPlayerBtn');
           resetPlayerBtn = document.getElementById('resetPlayerBtn');
           currentPlayerNameEl = document.getElementById('currentPlayerName');
 
           // Check essential elements
-          if (!mapContainer || !splashScreen || !startBtn || !scoreboardEl || !travelMapBtn || !trackerBackBtn /* Check new button */ || !bottomLeftControls || !trackerLegendEl || !progressionTitleEl || !progressionXpEl || !progressFillEl || !progressionNoteEl || !playerSetupPanelEl || !gameMenuPanelEl || !playerSelectEl || !playerNameInputEl || !addPlayerBtn || !continuePlayerBtn || !changePlayerBtn || !resetPlayerBtn || !currentPlayerNameEl || !trainingRegionSelect ) {
+          if (!mapContainer || !splashScreen || !startBtn || !scoreboardEl || !travelMapBtn || !trackerBackBtn /* Check new button */ || !bottomLeftControls || !trackerLegendEl || !progressionTitleEl || !progressionXpEl || !progressFillEl || !progressionNoteEl || !playerSetupPanelEl || !gameMenuPanelEl || !playerNameInputEl || !createPlayerBtn || !resetPlayerBtn || !currentPlayerNameEl || !trainingRegionSelect ) {
               throw new Error("One or more critical UI elements not found!");
           }
           console.log("DOM elements assigned.");
@@ -1276,7 +1236,8 @@
           // Initial UI state
           game.currentMode = 'menu'; console.log("Initial mode: 'menu'");
           setUIVisibility(game.currentMode);
-          showPlayerSetup();
+          if (game.hasPlayerProfile) showGameMenu();
+          else showPlayerSetup();
 
           startBtn.disabled = true; startBtn.innerText = "Loading...";
           travelMapBtn.disabled = true;
@@ -1295,11 +1256,8 @@
           trackerBackBtn.onclick = exitTrackerMode; // ADDED listener for new button
           difficultySelect.onchange = () => { game.difficulty = DIFFICULTY_SECONDS[difficultySelect.value] ? difficultySelect.value : 'medium'; saveSettingsData(); };
           trainingRegionSelect.onchange = () => { game.trainingRegion = TRAINING_REGIONS[trainingRegionSelect.value] ? trainingRegionSelect.value : 'world'; saveSettingsData(); };
-          playerSelectEl.onchange = () => { switchPlayer(playerSelectEl.value); };
-          addPlayerBtn.onclick = () => createPlayer(true);
-          continuePlayerBtn.onclick = continueWithPlayer;
-          changePlayerBtn.onclick = showPlayerSetup;
-          playerNameInputEl.onkeydown = (event) => { if (event.key === 'Enter') continueWithPlayer(); };
+          createPlayerBtn.onclick = createPlayer;
+          playerNameInputEl.onkeydown = (event) => { if (event.key === 'Enter') createPlayer(); };
           resetPlayerBtn.onclick = resetCurrentPlayerProgress;
           muteBtn.onclick = toggleMute;
           volumeSlider.oninput = () => { updateMusicVolume(volumeSlider.value); };
