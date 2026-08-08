@@ -21,7 +21,9 @@ test ! -e "$SERVICE" || cp -a "$SERVICE" "$ROLLBACK/geospot2.service"
 test ! -e "$PROXY" || cp -a "$PROXY" "$ROLLBACK/geospot2-proxy.conf"
 
 find "$SOURCE" -maxdepth 1 -type f ! -name '*.md' -exec cp -a {} "$RELEASE/public/" \;
-test ! -d "$SOURCE/vendor" || cp -a "$SOURCE/vendor" "$RELEASE/public/vendor"
+for asset_dir in vendor maps fonts; do
+    test ! -d "$SOURCE/$asset_dir" || cp -a "$SOURCE/$asset_dir" "$RELEASE/public/$asset_dir"
+done
 chown -R codexops:codexops "$RELEASE"
 ln -sfn "$RELEASE" "$BASE/current"
 chown -h codexops:codexops "$BASE/current"
@@ -47,4 +49,3 @@ systemctl reload apache2
 curl --fail --silent http://127.0.0.1:61210/api/health
 echo
 echo "GeoSpot installed. Rollback snapshot: $ROLLBACK"
-
