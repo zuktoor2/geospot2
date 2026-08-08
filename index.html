@@ -385,6 +385,7 @@
   const LOCAL_STORAGE_SETTINGS_KEY = 'geospot_settings';
   const MAX_LEADERBOARD_SCORES = 20;
   const COUNTRY_MASTERY_STREAK = 3;
+  const SHARED_API_BASE = location.hostname === 'wecreativeforge.com' && location.pathname.startsWith('/geospot/') ? `${location.origin}/geospot/api` : null;
   const DEFAULT_PLAYER_NAME = 'Player 1';
   const DIFFICULTY_SECONDS = { easy: 30, medium: 20, hard: 15, expert: 10 };
   const SCORE_TO_XP_DIVISOR = 25;
@@ -521,7 +522,8 @@
     currentPlayer: DEFAULT_PLAYER_NAME,
     hasPlayerProfile: false,
     players: {},
-    progress: { xp: 0, bestScore: 0, lastScore: 0, gamesPlayed: 0, lastGain: 0, scores: [], countryCorrectStreaks: {}, masteredCountries: [] }
+    progress: { xp: 0, bestScore: 0, lastScore: 0, gamesPlayed: 0, lastGain: 0, scores: [], countryCorrectStreaks: {}, masteredCountries: [] },
+    sharedGameTokenPromise: null
   };
 
   // --- SOUND HANDLING ---
@@ -635,20 +637,29 @@
       gameDifficultyPanelEl?.classList.add('active');
   }
 
-  function showLeaderboard() {
+  async function showLeaderboard() {
       playerSetupPanelEl?.classList.remove('active');
       gameMenuPanelEl?.classList.remove('active');
       gameDifficultyPanelEl?.classList.remove('active');
       trainingMenuPanelEl?.classList.remove('active');
       leaderboardPanelEl?.classList.add('active');
       renderLeaderboard();
+      if (SHARED_API_BASE) {
+          try {
+              const response = await fetch(`${SHARED_API_BASE}/leaderboard`, { headers: { Accept: 'application/json' } });
+              if (!response.ok) throw new Error(`Leaderboard request failed: ${response.status}`);
+              const payload = await response.json();
+              renderLeaderboard(Array.isArray(payload.scores) ? payload.scores : []);
+          } catch (error) { console.warn('Shared leaderboard unavailable; showing local scores.', error); }
+      }
   }
 
-  function renderLeaderboard() {
+  function renderLeaderboard(sharedScores = null) {
       if (!leaderboardListEl || !leaderboardEmptyEl || !leaderboardPlayerEl) return;
-      const scores = Array.isArray(game.progress.scores) ? [...game.progress.scores] : [];
+      const isShared = Array.isArray(sharedScores);
+      const scores = isShared ? [...sharedScores] : (Array.isArray(game.progress.scores) ? [...game.progress.scores] : []);
       scores.sort((a, b) => b.score - a.score || b.playedAt - a.playedAt);
-      leaderboardPlayerEl.textContent = `${game.currentPlayer}'s top scores`;
+      leaderboardPlayerEl.textContent = isShared ? 'Global top scores' : `${game.currentPlayer}'s top scores`;
       leaderboardListEl.innerHTML = '';
       leaderboardEmptyEl.style.display = scores.length ? 'none' : 'block';
       scores.slice(0, 10).forEach((entry, index) => {
@@ -660,11 +671,38 @@
           details.className = 'leaderboardDetails';
           score.className = 'leaderboardScore';
           rank.textContent = `#${index + 1}`;
-          details.textContent = `${game.currentPlayer} - ${entry.difficulty.charAt(0).toUpperCase() + entry.difficulty.slice(1)} - ${new Date(entry.playedAt).toLocaleDateString()}`;
+          const playerName = isShared ? entry.player : game.currentPlayer;
+          details.textContent = `${playerName} - ${entry.difficulty.charAt(0).toUpperCase() + entry.difficulty.slice(1)} - ${new Date(entry.playedAt).toLocaleDateString()}`;
           score.textContent = entry.score;
           item.append(rank, details, score);
           leaderboardListEl.appendChild(item);
       });
+  }
+
+  async function requestSharedGameToken() {
+      if (!SHARED_API_BASE) return null;
+      try {
+          const response = await fetch(`${SHARED_API_BASE}/session`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+              body: JSON.stringify({ player: game.currentPlayer, difficulty: game.difficulty })
+          });
+          if (!response.ok) throw new Error(`Session request failed: ${response.status}`);
+          return (await response.json()).token || null;
+      } catch (error) { console.warn('Shared game session unavailable.', error); return null; }
+  }
+
+  async function submitSharedLeaderboardScore(score) {
+      if (!SHARED_API_BASE) return;
+      const token = await game.sharedGameTokenPromise;
+      game.sharedGameTokenPromise = null;
+      if (!token) return;
+      try {
+          const response = await fetch(`${SHARED_API_BASE}/leaderboard`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+              body: JSON.stringify({ player: game.currentPlayer, score, difficulty: game.difficulty, token })
+          });
+          if (!response.ok) throw new Error(`Score submission failed: ${response.status}`);
+      } catch (error) { console.warn('Could not submit shared leaderboard score.', error); }
   }
 
   function getDefaultProgress() {
@@ -817,6 +855,7 @@
       game.progress.scores = game.progress.scores
           .sort((a, b) => b.score - a.score || b.playedAt - a.playedAt)
           .slice(0, MAX_LEADERBOARD_SCORES);
+      submitSharedLeaderboardScore(safeScore);
 
       const after = getProgressLevel(game.progress.xp);
       saveProgressionData();
@@ -1089,6 +1128,7 @@
       const selectedDifficulty = isTraining ? difficultySelect.value : gameDifficultySelect.value;
       game.difficulty = DIFFICULTY_SECONDS[selectedDifficulty] ? selectedDifficulty : 'medium';
       game.trainingRegion = isTraining && TRAINING_REGIONS[trainingRegionSelect.value] ? trainingRegionSelect.value : 'world';
+      game.sharedGameTokenPromise = requestSharedGameToken();
       saveSettingsData();
       game.isInputAllowed = false; game.incorrectlyGuessedCountries.clear();
       setUIVisibility('quiz');

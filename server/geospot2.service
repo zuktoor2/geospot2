@@ -1,0 +1,24 @@
+[Unit]
+Description=GeoSpot 2 game and shared leaderboard
+After=network.target
+
+[Service]
+Type=simple
+User=codexops
+Group=codexops
+WorkingDirectory=/home/codexops/geospot2/source
+Environment=GEOSPOT_BASE_DIR=/home/codexops/geospot2
+Environment=GEOSPOT_PUBLIC_DIR=/home/codexops/geospot2/current/public
+Environment=GEOSPOT_ALLOWED_ORIGIN=https://wecreativeforge.com
+ExecStart=/home/codexops/geospot2/venv/bin/gunicorn --bind 127.0.0.1:61210 --workers 2 --threads 2 --timeout 30 --access-logfile - server.app:app
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/codexops/geospot2/data
+
+[Install]
+WantedBy=multi-user.target
+
