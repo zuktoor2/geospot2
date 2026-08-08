@@ -377,7 +377,6 @@
   const PARTICIPATION_XP = 40;
   const MISSED_COUNTRY_XP_PENALTY = 5;
   const MAX_XP_PER_GAME = 250;
-  const LABEL_ASSIST_LEVELS = 2;
   const LEVELS = [
       { xp: 0, title: 'Globe Rookie' },
       { xp: 500, title: 'Map Scout' },
@@ -523,7 +522,7 @@
   function updateScoreboard() { if (!totalScoreEl || !roundEl || !streakEl) return; try { totalScoreEl.innerText = game.totalScore; roundEl.innerText = `${game.round}/${MAX_ROUNDS}`; streakEl.innerText = game.streak; } catch(e){ console.error("Error updating scoreboard", e); } }
   function showFeedback(message, type = 'info', duration = 3000) { if (game.currentMode !== 'quiz' || !feedbackEl) return; try { console.log(`Showing feedback (${type}): ${message}`); feedbackEl.innerText = message; feedbackEl.className = `visible ${type}`; if (game.feedbackTimeout) clearTimeout(game.feedbackTimeout); game.feedbackTimeout = setTimeout(() => { if (feedbackEl) feedbackEl.className = ''; game.feedbackTimeout = null; }, duration); } catch(e){ console.error("Error showing feedback", e); } }
   function updateTimerDisplay() { if (game.currentMode !== 'quiz' || !timerDisplayEl) return; try { timerDisplayEl.innerText = game.timeLeft > 0 ? `(${game.timeLeft}s)` : ''; } catch(e){ console.error("Error updating timer display", e); } }
-  function shouldShowQuizLabels() { return getProgressLevel(game.progress.xp).number <= LABEL_ASSIST_LEVELS; }
+  function shouldShowQuizLabels() { return game.difficulty === 'easy'; }
   function updateCountryLabelVisibility() {
       if (!map || !map.getLayer('all-country-labels')) return;
       const visibility = (game.currentMode === 'tracker' || (game.currentMode === 'quiz' && shouldShowQuizLabels())) ? 'visible' : 'none';
@@ -574,7 +573,7 @@
       if (note) {
           progressionNoteEl.innerText = note;
       } else if (next) {
-          const assistNote = level.number <= LABEL_ASSIST_LEVELS ? ' Country names visible through Level 2.' : '';
+          const assistNote = ' Country names are shown on Easy only.';
           progressionNoteEl.innerText = `${next.xp - xp} XP to ${next.title}. Best score: ${game.progress.bestScore || 0}.${assistNote}`;
       } else {
           progressionNoteEl.innerText = `Top rank reached. Best score: ${game.progress.bestScore || 0}.`;
