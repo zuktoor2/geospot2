@@ -82,14 +82,20 @@
     .playerActions button:active { transform: scale(0.98); }
     .mainMenuButton, .trainingMenuButton { display: block; width: 100%; padding: 12px 20px; font-size: 17px; cursor: pointer; color: white; border: none; border-radius: 8px; transition: background-color 0.3s, transform 0.1s; margin-top: 10px; min-height: 46px; }
     .mainMenuButton:active, .trainingMenuButton:active { transform: scale(0.98); }
-    #startBtn, #startTrainingBtn { background-color: #24a35a; }
-    #startBtn:hover, #startTrainingBtn:hover { background-color: #2fbf69; }
+    #startBtn, #beginGameBtn, #startTrainingBtn { background-color: #24a35a; }
+    #startBtn:hover:not(:disabled), #beginGameBtn:hover:not(:disabled), #startTrainingBtn:hover:not(:disabled) { background-color: #2fbf69; }
     #trainingMenuBtn { background-color: #d97706; }
     #trainingMenuBtn:hover { background-color: #f59e0b; }
     #travelMapBtn { background-color: #2176d2; }
     #travelMapBtn:hover { background-color: #2f88ed; }
-    #trainingBackBtn { background-color: #475569; }
-    #trainingBackBtn:hover { background-color: #64748b; }
+    #trainingBackBtn, #gameDifficultyBackBtn { background-color: #475569; }
+    #trainingBackBtn:hover, #gameDifficultyBackBtn:hover { background-color: #64748b; }
+    .mainMenuButton:disabled, .trainingMenuButton:disabled {
+      background-color: #334155;
+      color: rgba(255,255,255,0.62);
+      cursor: wait;
+      opacity: 1;
+    }
     #lastScore { margin-top: 18px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.18); font-size: 15px; color: rgba(255,255,255,0.82); }
     #progressionPanel { margin-top: 18px; padding: 14px; border-radius: 8px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.16); text-align: left; }
     #progressionHeader { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; font-size: 14px; color: #dbeafe; }
