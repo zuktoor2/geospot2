@@ -1,0 +1,1317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>GeoSpot - 3D Flat Map</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="vendor/maplibre-gl.css" rel="stylesheet" />
+  <style>
+    /* --- Base Styles --- */
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #040b17; color: #fff; }
+    button, select, input { font: inherit; }
+    button { touch-action: manipulation; }
+    #map { position: absolute; top: 0; bottom: 0; width: 100%; height: 100%; }
+
+    /* --- UI Container & Scoreboard --- */
+    #ui-container { position: absolute; top: 0; left: 0; right: 0; padding: calc(12px + env(safe-area-inset-top)) 12px 12px; z-index: 2; pointer-events: none; display: flex; flex-direction: column; gap: 10px; align-items: center; }
+    #scoreboard { display: flex; justify-content: space-between; align-items: center; width: 100%; max-width: 1200px; pointer-events: auto; gap: 15px; flex-wrap: wrap; /* Allow wrapping */ }
+    #scoreboard-left, #scoreboard-center, #scoreboard-right { display: flex; align-items: center; gap: 10px; }
+    #scoreboard-left { flex-shrink: 0; } #scoreboard-center { flex-grow: 1; justify-content: center; } #scoreboard-right { flex-shrink: 0; }
+    .score-pill { background: rgba(0, 88, 48, 0.86); color: #ffffff; border-radius: 8px; padding: 8px 15px; font-size: 14px; font-weight: bold; box-shadow: 0 1px 4px rgba(0,0,0,0.4); text-align: center; backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.22); transition: background-color 0.3s ease, transform 0.1s ease; white-space: nowrap; }
+    .score-pill#countryTab { padding: 10px 20px; font-size: 16px; min-width: 180px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; }
+    #gameTitle { font-size: 16px; line-height: 1.2; background-color: rgba(0, 80, 0, 0.8); }
+    #gameSubtitle { font-size: 11px; font-weight: normal; display: block; margin-top: 2px; opacity: 0.8; }
+
+    /* --- Exit Button --- */
+    #exitGameBtn { background-color: #a03d3d; border-color: rgba(255, 150, 150, 0.3); padding: 8px 15px; font-size: 14px; cursor: pointer; }
+    #exitGameBtn:hover { background-color: #c04d4d; }
+    #exitGameBtn:active { transform: scale(0.98); }
+    /* REMOVED old #backToMenuBtn styles */
+
+    /* NEW: Tracker Back Button */
+    #trackerBackBtn {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        z-index: 5; /* Above scoreboard items if they somehow overlap */
+        background: rgba(68, 68, 68, 0.8); /* #444 */
+        color: #ffffff;
+        border-radius: 20px;
+        padding: 8px 15px;
+        font-size: 14px;
+        font-weight: bold;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+        backdrop-filter: blur(3px);
+        border: 1px solid #777; /* rgba(255, 255, 255, 0.2); */
+        cursor: pointer;
+        transition: background-color 0.3s ease, transform 0.1s ease;
+        pointer-events: auto; /* Make it clickable */
+    }
+    #trackerBackBtn:hover { background-color: #666; }
+    #trackerBackBtn:active { transform: scale(0.98); }
+
+
+    /* --- Feedback --- */
+    #feedback { text-align: center; font-size: 18px; font-weight: bold; padding: 10px; background: rgba(0, 0, 0, 0.7); border-radius: 8px; max-width: 600px; width: fit-content; opacity: 0; transition: opacity 0.5s ease-in-out; pointer-events: none; color: #fff; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); margin-top: 5px; }
+    #feedback.visible { opacity: 1; }
+    #feedback.correct { color: #f4fff7; background: rgba(12, 88, 45, 0.9); border: 1px solid rgba(94, 230, 130, 0.75); }
+    #feedback.incorrect { color: #fff8ef; background: rgba(55, 18, 12, 0.92); border: 1px solid rgba(255, 112, 82, 0.82); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); text-shadow: 0 1px 2px rgba(0,0,0,0.9); }
+    #feedback.info { color: #f0f8ff; background: rgba(18, 55, 87, 0.9); border: 1px solid rgba(91, 178, 255, 0.75); }
+
+    /* --- Splash Screen --- */
+    #splash { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: url('cover.png') no-repeat center center; background-color: #040b17; background-size: cover; z-index: 1000; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #fff; font-size: 24px; text-shadow: 1px 1px 3px rgba(0,0,0,0.7); pointer-events: auto; transition: opacity 0.5s ease-out; }
+    #splash.hidden { opacity: 0; pointer-events: none; }
+    #settings { background: rgba(2, 12, 23, 0.84); padding: 24px; border-radius: 8px; text-align: center; box-shadow: 0 16px 40px rgba(0,0,0,0.45); margin-top: 30px; backdrop-filter: blur(8px); width: min(92vw, 520px); border: 1px solid rgba(255,255,255,0.18); }
+    #settings label { display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 15px; font-size: 16px; color: #eee; }
+    #settings select, #settings input[type="checkbox"] { font-size: 15px; vertical-align: middle; }
+    #difficulty { max-width: 100%; }
+    #trainingRegion { max-width: 100%; }
+    #settings input[type="checkbox"] { transform: scale(1.2); }
+    .menu-step-title { margin: 0 0 14px; font-size: 20px; line-height: 1.2; color: #ffffff; }
+    .menu-step { display: none; }
+    .menu-step.active { display: block; }
+    #playerSetupPanel, #activePlayerPanel { margin: 4px 0 16px; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.14); }
+    #playerSetupPanel label { margin-bottom: 10px; }
+    #playerSelect { min-width: 150px; max-width: 220px; padding: 5px; }
+    #playerNameInput { min-height: 36px; width: min(100%, 220px); padding: 7px 9px; border: 1px solid rgba(255,255,255,0.28); border-radius: 8px; background: rgba(255,255,255,0.94); color: #111827; font-size: 14px; box-sizing: border-box; }
+    #newPlayerRow { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+    .playerActions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+    .playerActions button { min-height: 38px; padding: 8px 12px; border: 0; border-radius: 8px; color: white; cursor: pointer; font-weight: 700; transition: background-color 0.2s ease, transform 0.1s ease; }
+    #currentPlayerName { display: block; margin-bottom: 10px; font-size: 17px; font-weight: 700; color: #ffffff; }
+    #addPlayerBtn { background: #2176d2; }
+    #addPlayerBtn:hover { background: #2f88ed; }
+    #continuePlayerBtn { background: #24a35a; }
+    #continuePlayerBtn:hover { background: #2fbf69; }
+    #changePlayerBtn { background: #475569; }
+    #changePlayerBtn:hover { background: #64748b; }
+    #resetPlayerBtn { background: #8b2f2f; }
+    #resetPlayerBtn:hover { background: #a23a3a; }
+    .playerActions button:active { transform: scale(0.98); }
+    #startBtn { padding: 12px 25px; font-size: 18px; cursor: pointer; background-color: #24a35a; color: white; border: none; border-radius: 8px; transition: background-color 0.3s, transform 0.1s; margin-top: 10px; min-height: 44px; }
+    #startBtn:hover { background-color: #45a049; } #startBtn:active { transform: scale(0.98); }
+    #travelMapBtn { padding: 10px 20px; font-size: 16px; cursor: pointer; background-color: #2176d2; color: white; border: none; border-radius: 8px; transition: background-color 0.3s, transform 0.1s; margin-top: 15px; min-height: 44px; }
+    #travelMapBtn:hover { background-color: #1976D2; } #travelMapBtn:active { transform: scale(0.98); }
+    #progressionPanel { margin-top: 18px; padding: 14px; border-radius: 8px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.16); text-align: left; }
+    #progressionHeader { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; font-size: 14px; color: #dbeafe; }
+    #progressionTitle { font-size: 16px; font-weight: 700; color: #ffffff; }
+    #progressionXp { white-space: nowrap; opacity: 0.86; }
+    #progressBar { height: 10px; margin-top: 10px; border-radius: 999px; overflow: hidden; background: rgba(0,0,0,0.42); box-shadow: inset 0 1px 2px rgba(0,0,0,0.45); }
+    #progressFill { width: 0%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #34d399, #38bdf8); transition: width 0.35s ease; }
+    #progressionNote { margin-top: 8px; font-size: 12px; color: rgba(255,255,255,0.72); }
+
+    /* --- Star Explosion --- */
+    @keyframes explode { 0% { opacity: 1; transform: translate(0, 0) scale(1); } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.1); } }
+    .star-explosion { position: fixed; width: 14px; height: 14px; background: gold; border-radius: 50%; pointer-events: none; z-index: 9999; animation: explode 0.8s ease-out forwards; }
+
+    /* --- Footer --- */
+    #footer { position: absolute; bottom: 10px; width: 100%; text-align: center; color: rgba(255, 255, 255, 0.7); font-size: 12px; z-index: 1; text-shadow: 0 0 3px black; pointer-events: none; }
+
+    /* --- Bottom Left Controls --- */
+    #bottom-left-controls { position: absolute; bottom: calc(15px + env(safe-area-inset-bottom)); left: 15px; z-index: 3; background: rgba(3, 10, 18, 0.72); padding: 10px 15px; border-radius: 8px; display: flex; align-items: center; gap: 15px; pointer-events: auto; backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.2); }
+    #muteBtn { padding: 5px 10px; font-size: 14px; cursor: pointer; background-color: #555; color: white; border: 1px solid #888; border-radius: 4px; min-width: 70px; text-align: center; transition: background-color 0.3s ease;}
+    #muteBtn:hover { background-color: #777; }
+    #volumeControl label { font-size: 12px; margin-right: 5px; vertical-align: middle; }
+    #volumeSlider { vertical-align: middle; cursor: pointer; width: 100px; }
+
+    /* --- Bottom Right Incorrect List --- */
+    #incorrect-list-container { position: absolute; bottom: 15px; right: 15px; z-index: 3; background: rgba(100, 0, 0, 0.7); padding: 10px 15px; border-radius: 8px; pointer-events: auto; backdrop-filter: blur(3px); border: 1px solid rgba(255, 100, 100, 0.3); max-height: 200px; overflow-y: auto; max-width: 200px; color: #eee; display: none; }
+    #incorrect-list-container.visible { display: block; }
+    #incorrect-list-container h4 { margin: 0 0 8px 0; font-size: 14px; font-weight: bold; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 4px; text-align: center; }
+    #incorrect-list { list-style: none; padding: 0; margin: 0; font-size: 13px; }
+    #incorrect-list li { padding: 2px 0; opacity: 0.9; }
+
+    /* --- Tracker Legend --- */
+    #tracker-legend {
+        position: absolute;
+        bottom: 10px; /* Align with footer */
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.75);
+        color: #eee;
+        padding: 8px 15px;
+        border-radius: 15px;
+        font-size: 13px;
+        z-index: 3; /* Above map, potentially below controls if needed */
+        text-align: center;
+        pointer-events: none; /* Don't intercept clicks */
+        backdrop-filter: blur(3px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    #tracker-legend span { /* Style the colored text */
+        display: inline-block;
+        padding: 0 3px;
+    }
+
+    /* --- Responsive Styles --- */
+    @media (max-width: 768px) {
+        #scoreboard {
+            gap: 8px; /* Reduce gap */
+            padding: 10px;
+            justify-content: center; /* Center items when wrapping */
+        }
+        #scoreboard-left, #scoreboard-center, #scoreboard-right {
+            gap: 8px;
+            margin-bottom: 5px; /* Add space if they wrap */
+        }
+        #scoreboard-center {
+           order: -1; /* Move country name to top on wrap */
+           width: 100%; /* Take full width when wrapped */
+           justify-content: center;
+        }
+         #scoreboard-left {
+            justify-content: center; /* Center title */
+            flex-grow: 1; /* Allow left/right to take space */
+         }
+         #scoreboard-right {
+            justify-content: center; /* Center score/round/streak */
+             flex-grow: 1;
+         }
+        .score-pill {
+            padding: 6px 10px;
+            font-size: 12px;
+        }
+        .score-pill#countryTab {
+            padding: 8px 15px;
+            font-size: 14px;
+            min-width: 150px;
+        }
+        #gameTitle { font-size: 14px; }
+        #gameSubtitle { font-size: 10px; }
+        #exitGameBtn { font-size: 12px; padding: 6px 10px; }
+        #trackerBackBtn { font-size: 12px; padding: 6px 10px; top: 10px; right: 10px; } /* Adjust new button too */
+
+        #feedback { font-size: 16px; max-width: 90%; padding: 8px; }
+
+        #settings { padding: 20px 15px; width: 90%; max-width: none; }
+        #settings label { font-size: 15px; }
+        #settings select, #settings input[type="checkbox"] { font-size: 14px; }
+        #playerSetupPanel, #activePlayerPanel { padding: 10px; }
+        #newPlayerRow { gap: 8px; }
+        #playerNameInput { flex: 1 1 150px; }
+        .playerActions button { flex: 1 1 120px; }
+        #progressionPanel { padding: 12px; }
+        #startBtn { padding: 12px 20px; font-size: 16px; }
+        #travelMapBtn { padding: 10px 18px; font-size: 15px; }
+
+        #bottom-left-controls {
+            bottom: 10px; left: 10px; padding: 8px 10px; gap: 8px;
+            flex-direction: column; /* Stack vertically */
+            align-items: flex-start;
+        }
+        #muteBtn { font-size: 12px; padding: 4px 8px; }
+        #volumeControl label { font-size: 11px; }
+        #volumeSlider { width: 80px; }
+
+        #incorrect-list-container {
+            bottom: 10px; right: 10px; padding: 8px 10px; max-width: 120px; max-height: 150px;
+        }
+        #incorrect-list-container h4 { font-size: 13px; }
+        #incorrect-list { font-size: 11px; }
+
+        #tracker-legend {
+            font-size: 11px; padding: 6px 10px; bottom: 5px; /* Adjust legend */
+            max-width: calc(100% - 20px); /* Prevent overflow */
+            box-sizing: border-box;
+        }
+
+        #footer { font-size: 10px; bottom: 5px; }
+
+        /* Adjust map controls positioning if needed */
+        .maplibregl-ctrl-top-right { top: 55px; /* Move default controls down below our new back button */ }
+        @media (max-width: 480px) {
+             .maplibregl-ctrl-top-right { top: 10px; } /* On very small screens maybe put it back */
+             #trackerBackBtn { top: 60px; } /* Move our button below map controls */
+        }
+    }
+
+    @media (max-width: 520px) {
+        #splash { justify-content: center; padding: 18px; }
+        #coverMessage { font-size: 22px; text-align: center; }
+        #settings { width: calc(100vw - 20px); padding: 20px 16px; margin-top: 22px; }
+        #settings label { align-items: stretch; flex-direction: column; gap: 7px; margin-bottom: 14px; }
+        #settings label:has(input[type="checkbox"]) { flex-direction: row; align-items: center; }
+        #settings select { width: 100%; min-height: 42px; }
+        #startBtn, #travelMapBtn { width: 100%; margin: 8px 0 0; }
+
+        #ui-container { padding: calc(10px + env(safe-area-inset-top)) 8px 8px; }
+        #scoreboard { width: 100%; display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; align-items: stretch; padding: 0; }
+        body:not(.mode-quiz) #scoreboard { display: none !important; }
+        #scoreboard-left, #scoreboard-center, #scoreboard-right { display: contents; }
+        #gameTitle { display: none; }
+        #gameTitle::before { content: "GeoSpot"; font-size: 12px; }
+        #gameSubtitle { display: none; }
+        .score-pill { min-width: 0; padding: 8px 6px; border-radius: 8px; font-size: 11px; line-height: 1.1; overflow: hidden; text-overflow: ellipsis; }
+        .score-pill#countryTab { grid-column: 1 / -1; grid-row: 1; width: 100%; max-width: none; min-width: 0; padding: 10px 12px; font-size: 16px; }
+        #scoreTab, #roundTab, #streakTab, #exitGameBtn { grid-row: 2; }
+        #exitGameBtn { padding: 8px 6px; justify-content: center; }
+        #feedback { margin-top: 6px; width: calc(100vw - 28px); max-width: none; font-size: 14px; }
+
+        #bottom-left-controls { left: 50%; bottom: calc(12px + env(safe-area-inset-bottom)); transform: translateX(-50%); flex-direction: row; gap: 10px; width: min(calc(100vw - 24px), 360px); justify-content: space-between; padding: 9px 10px; }
+        #muteBtn { min-height: 36px; min-width: 74px; }
+        #volumeControl { display: flex; align-items: center; gap: 7px; flex: 1; min-width: 0; }
+        #volumeSlider { width: 100%; }
+        body.mode-menu #bottom-left-controls { display: none !important; }
+        body.mode-quiz #footer { display: none !important; }
+        .maplibregl-ctrl-top-right { top: auto !important; right: 10px !important; bottom: calc(82px + env(safe-area-inset-bottom)); }
+        .maplibregl-ctrl-bottom-right { bottom: calc(8px + env(safe-area-inset-bottom)); }
+        .maplibregl-ctrl-bottom-left { display: none; }
+        #incorrect-list-container { left: 10px; right: auto; bottom: calc(82px + env(safe-area-inset-bottom)); max-width: min(220px, calc(100vw - 88px)); }
+        #trackerBackBtn { top: calc(10px + env(safe-area-inset-top)); right: 10px; min-height: 42px; }
+        #tracker-legend { bottom: calc(70px + env(safe-area-inset-bottom)); width: calc(100vw - 24px); }
+    }
+
+  </style>
+</head>
+<body>
+
+<!-- UI Elements -->
+<div id="ui-container">
+  <div id="scoreboard" style="display: none;" aria-label="Game status">
+    <div id="scoreboard-left">
+      <!-- REMOVED backToMenuBtn from here -->
+      <div class="score-pill" id="gameTitle"> GeoSpot <span id="gameSubtitle">3D flat map: click the country!</span> </div>
+    </div>
+    <div id="scoreboard-center">
+      <div class="score-pill" id="countryTab" aria-live="polite"> <span id="countryName">Loading...</span> <span id="timerDisplay" style="margin-left: 10px; font-weight: normal; opacity: 0.8;"></span> </div>
+    </div>
+    <div id="scoreboard-right">
+      <div class="score-pill" id="scoreTab"> SCORE: <span id="totalScore">0</span> </div>
+      <div class="score-pill" id="roundTab"> ROUND: <span id="round">0/10</span> </div>
+      <div class="score-pill" id="streakTab"> STREAK: <span id="streak">0</span> </div>
+      <button id="exitGameBtn" class="score-pill" style="display: none;">Exit Game</button>
+    </div>
+  </div>
+  <div id="feedback" style="display: none;" aria-live="polite"></div>
+</div>
+<div id="map"></div>
+<div id="splash">
+  <div id="coverMessage">Welcome to GeoSpot!</div>
+  <div id="settings">
+    <div id="playerSetupPanel" class="menu-step active">
+      <h2 class="menu-step-title">Who's playing?</h2>
+      <label> Player: <select id="playerSelect" aria-label="Player"></select> </label>
+      <div id="newPlayerRow">
+        <input id="playerNameInput" type="text" maxlength="24" placeholder="New player name" aria-label="New player name">
+        <button id="addPlayerBtn" type="button">New Player</button>
+      </div>
+      <div class="playerActions">
+        <button id="continuePlayerBtn" type="button">Continue</button>
+      </div>
+    </div>
+    <div id="gameMenuPanel" class="menu-step">
+      <div id="activePlayerPanel">
+        <span id="currentPlayerName">Playing as Player 1</span>
+        <div class="playerActions">
+          <button id="changePlayerBtn" type="button">Change Player</button>
+          <button id="resetPlayerBtn" type="button">Reset Score</button>
+        </div>
+      </div>
+      <label> Difficulty: <select id="difficulty" style="padding: 5px;"> <option value="easy">Easy (30s)</option> <option value="medium" selected>Medium (20s)</option> <option value="hard">Hard (15s)</option> <option value="expert">Expert (10s)</option> </select> </label>
+      <label> Training: <select id="trainingRegion" style="padding: 5px;"> <option value="world" selected>World - all regions</option> <option value="africa">Africa</option> <option value="asia">Asia</option> <option value="europe">Europe</option> <option value="northAmerica">North America & Caribbean</option> <option value="southAmerica">South America</option> <option value="oceania">Oceania</option> <option value="polar">Polar & Antarctica</option> </select> </label>
+      <button id="startBtn" disabled>Loading Data...</button>
+      <button id="travelMapBtn" disabled>My Travel Map</button>
+      <div id="progressionPanel" aria-live="polite">
+        <div id="progressionHeader">
+          <span id="progressionTitle">Level 1 - Globe Rookie</span>
+          <span id="progressionXp">0 XP</span>
+        </div>
+        <div id="progressBar"><div id="progressFill"></div></div>
+        <div id="progressionNote">Play rounds to earn XP and unlock higher ranks.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="bottom-left-controls">
+  <button id="muteBtn" aria-label="Toggle sound">Mute</button>
+  <div id="volumeControl"> <label for="volumeSlider">Music:</label> <input type="range" id="volumeSlider" min="0" max="1" step="0.05" value="0.3"> </div>
+</div>
+<div id="incorrect-list-container" style="display: none;">
+    <h4>Missed Countries</h4> <ul id="incorrect-list"></ul>
+</div>
+
+<!-- ADDED: Tracker Mode Legend -->
+<div id="tracker-legend" style="display: none;">
+    Click a country to cycle: Default &rarr;
+    <span style="color: #4CAF50; font-weight: bold;">Visited</span> &rarr;
+    <span style="color: #FFEB3B; font-weight: bold;">Wishlist</span> &rarr; Default
+</div>
+
+<!-- ADDED: Standalone Tracker Back Button -->
+<button id="trackerBackBtn" style="display: none;">Back to Menu</button>
+
+<div id="footer" style="text-align: left;">&copy; Guillaume Rico - Creative Forge 2025</div>
+
+
+
+<!-- Libraries -->
+<script src="vendor/maplibre-gl.js"></script>
+<script src="vendor/pmtiles.js"></script>
+<script src="vendor/protomaps-basemaps.js"></script>
+<script src="vendor/turf.min.js"></script>
+
+<script>
+  // --- CONFIGURATION ---
+  const MAX_ROUNDS = 10;
+  const COUNTRIES_URL = 'countries.geo.json';
+  const BACKGROUND_MUSIC_FILES = ['relax1.mp3', 'relax2.mp3', 'relax3.mp3'];
+  const INITIAL_MUSIC_VOLUME = 0.3;
+  const LOCAL_STORAGE_VISITED_KEY = 'geospot_visited';
+  const LOCAL_STORAGE_WISHLIST_KEY = 'geospot_wishlist';
+  const LOCAL_STORAGE_PROGRESS_KEY = 'geospot_progress';
+  const LOCAL_STORAGE_PLAYERS_KEY = 'geospot_players';
+  const LOCAL_STORAGE_CURRENT_PLAYER_KEY = 'geospot_current_player';
+  const LOCAL_STORAGE_SETTINGS_KEY = 'geospot_settings';
+  const DEFAULT_PLAYER_NAME = 'Player 1';
+  const DIFFICULTY_SECONDS = { easy: 30, medium: 20, hard: 15, expert: 10 };
+  const SCORE_TO_XP_DIVISOR = 25;
+  const PARTICIPATION_XP = 40;
+  const MISSED_COUNTRY_XP_PENALTY = 5;
+  const MAX_XP_PER_GAME = 250;
+  const LABEL_ASSIST_LEVELS = 2;
+  const LEVELS = [
+      { xp: 0, title: 'Globe Rookie' },
+      { xp: 500, title: 'Map Scout' },
+      { xp: 1200, title: 'Border Spotter' },
+      { xp: 2200, title: 'Country Tracker' },
+      { xp: 3600, title: 'Atlas Specialist' },
+      { xp: 5400, title: 'World Navigator' },
+      { xp: 7600, title: 'Geo Master' },
+      { xp: 10200, title: 'Planet Legend' }
+  ];
+  const TRAINING_REGIONS = {
+      world: { title: 'World', ids: null },
+      africa: { title: 'Africa', ids: ['AGO','BDI','BEN','BFA','BWA','CAF','CIV','CMR','COD','COG','DJI','DZA','EGY','ERI','ESH','ETH','GAB','GHA','GIN','GMB','GNB','GNQ','KEN','LBR','LBY','LSO','MAR','MDG','MLI','MOZ','MRT','MWI','NAM','NER','NGA','RWA','SDN','SEN','SLE','SOM','SSD','SWZ','TCD','TGO','TUN','TZA','UGA','ZAF','ZMB','ZWE','-99:Somaliland'] },
+      asia: { title: 'Asia', ids: ['AFG','ARE','ARM','AZE','BGD','BRN','BTN','CHN','GEO','IDN','IND','IRN','IRQ','ISR','JOR','JPN','KAZ','KGZ','KHM','KOR','KWT','LAO','LBN','LKA','MMR','MNG','MYS','NPL','OMN','PAK','PHL','PRK','PSE','QAT','SAU','SYR','THA','TJK','TKM','TLS','TWN','UZB','VNM','YEM'] },
+      europe: { title: 'Europe', ids: ['ALB','AUT','BEL','BGR','BIH','BLR','CHE','CS-KM','CYP','CZE','DEU','DNK','ESP','EST','FIN','FRA','GBR','GRC','HRV','HUN','IRL','ISL','ITA','LTU','LUX','LVA','MDA','MKD','MLT','MNE','NLD','NOR','POL','PRT','ROU','RUS','SRB','SVK','SVN','SWE','TUR','UKR','-99:Northern Cyprus'] },
+      northAmerica: { title: 'North America & Caribbean', ids: ['BHS','BLZ','BMU','CAN','CRI','CUB','DOM','GRL','GTM','HND','HTI','JAM','MEX','NIC','PAN','PRI','SLV','TTO','USA'] },
+      southAmerica: { title: 'South America', ids: ['ARG','BOL','BRA','CHL','COL','ECU','FLK','GUF','GUY','PER','PRY','SUR','URY','VEN'] },
+      oceania: { title: 'Oceania', ids: ['AUS','FJI','NCL','NZL','PNG','SLB','VUT'] },
+      polar: { title: 'Polar & Antarctica', ids: ['ATA','ATF'] }
+  };
+  Object.values(TRAINING_REGIONS).forEach(region => {
+      if (region.ids) region.idSet = new Set(region.ids);
+  });
+  const PMTILES_URL = 'maps/planet_z6.pmtiles';
+  const GLYPHS_URL = 'fonts/{fontstack}/{range}.pbf';
+
+  function createMapStyle() {
+      const flavor = {
+          ...basemaps.namedFlavor('light'),
+          background: '#163d52',
+          earth: '#c9b98d',
+          water: '#1d6478',
+          boundaries: '#57644f',
+          landcover: {
+              grassland: 'rgba(142, 174, 113, 1)',
+              barren: 'rgba(196, 168, 116, 1)',
+              urban_area: 'rgba(181, 174, 154, 1)',
+              farmland: 'rgba(152, 174, 103, 1)',
+              glacier: 'rgba(225, 232, 229, 1)',
+              scrub: 'rgba(170, 171, 111, 1)',
+              forest: 'rgba(96, 145, 106, 1)'
+          },
+          park_a: '#7fae7a',
+          park_b: '#6ea56f',
+          sand: '#d8c183',
+          beach: '#dfcc91'
+      };
+      const removedBasemapLayerPrefixes = [
+          'roads',
+          'buildings',
+          'pois',
+          'landuse_aerodrome',
+          'landuse_hospital',
+          'landuse_industrial',
+          'landuse_pedestrian',
+          'landuse_pier',
+          'landuse_runway',
+          'landuse_school',
+          'landuse_urban_green',
+          'landuse_zoo'
+      ];
+      const layers = basemaps.layers('protomaps', flavor, { lang: 'en', labelsOnly: false })
+          .filter(layer => layer.type !== 'symbol')
+          .filter(layer => !removedBasemapLayerPrefixes.some(prefix => layer.id === prefix || layer.id.startsWith(`${prefix}_`)))
+          .map(layer => {
+              const paint = { ...(layer.paint || {}) };
+              if (layer.id === 'boundaries_country') {
+                  paint['line-color'] = '#31402d';
+                  paint['line-width'] = 1.4;
+                  paint['line-opacity'] = 0.78;
+              } else if (layer.id === 'boundaries') {
+                  paint['line-color'] = '#56624e';
+                  paint['line-width'] = 0.75;
+                  paint['line-opacity'] = 0.52;
+              } else if (layer.id === 'earth') {
+                  paint['fill-color'] = '#c7b47f';
+              } else if (layer.id === 'water') {
+                  paint['fill-color'] = '#1f6f82';
+              }
+              if (!layer.layout) return layer;
+              const layout = { ...layer.layout };
+              // Keep this proof-of-concept fully local without sprite/icon assets.
+              delete layout['icon-image'];
+              delete layout['icon-size'];
+              delete layout['icon-rotate'];
+              delete layout['icon-padding'];
+              delete layout['icon-rotation-alignment'];
+              return { ...layer, paint, layout };
+          });
+
+      return {
+          version: 8,
+          glyphs: GLYPHS_URL,
+          sources: {
+              protomaps: {
+                  type: 'vector',
+                  url: `pmtiles://${PMTILES_URL}`,
+                  attribution: '<a href="https://protomaps.com">Protomaps</a> &copy; <a href="https://openstreetmap.org">OpenStreetMap</a>'
+              }
+          },
+          layers
+      };
+  }
+
+  // --- DOM ELEMENTS ---
+  let mapContainer, splashScreen, startBtn, difficultySelect, trainingRegionSelect, countryNameEl,
+      timerDisplayEl, totalScoreEl, roundEl, streakEl, feedbackEl, muteBtn,
+      volumeSlider, incorrectListEl, incorrectListContainerEl, exitGameBtn,
+      travelMapBtn, trackerBackBtn, // <-- ADDED trackerBackBtn, removed old backToMenuBtn
+      scoreboardEl, bottomLeftControls,
+      trackerLegendEl; // <-- ADDED
+
+  // --- MAP & GAME STATE ---
+  let map;
+  let progressionTitleEl, progressionXpEl, progressFillEl, progressionNoteEl,
+      playerSetupPanelEl, gameMenuPanelEl, playerSelectEl, playerNameInputEl,
+      addPlayerBtn, continuePlayerBtn, changePlayerBtn, resetPlayerBtn, currentPlayerNameEl;
+  const game = {
+    currentMode: 'menu', // 'menu', 'quiz', 'tracker'
+    countriesGeoJson: null, countryFeaturesMap: new Map(), currentCountry: null,
+    totalScore: 0, round: 0, streak: 0, difficulty: 'medium', trainingRegion: 'world',
+    timerInterval: null, timeLeft: 0, isInputAllowed: false, currentMarker: null,
+    sounds: {}, backgroundMusic: null, isLoaded: false, feedbackTimeout: null,
+    isMuted: false, musicVolumePreference: INITIAL_MUSIC_VOLUME, isGameRunning: false,
+    incorrectlyGuessedCountries: new Set(),
+    visitedCountries: new Set(),
+    wishlistCountries: new Set(),
+    currentPlayer: DEFAULT_PLAYER_NAME,
+    players: {},
+    progress: { xp: 0, bestScore: 0, gamesPlayed: 0, lastGain: 0 }
+  };
+
+  // --- SOUND HANDLING ---
+  function loadSounds() { const soundFiles = ['correct', 'wrong', 'timeout', 'start', 'gameover']; soundFiles.forEach(name => { try { game.sounds[name] = new Audio(`${name}.mp3`); game.sounds[name].onerror = () => console.warn(`Could not load sound: ${name}.mp3`); } catch(e) { console.error(`Error creating Audio for ${name}.mp3`, e); } }); }
+  function playSound(name) { if (game.isMuted) return; if (game.sounds[name]) { try { game.sounds[name].currentTime = 0; game.sounds[name].play().catch(e => console.warn(`Sound play error (${name}):`, e)); } catch(e) { console.error(`Error playing sound ${name}`, e); } } }
+  function startBackgroundMusic() { stopBackgroundMusic(); if (game.isMuted || BACKGROUND_MUSIC_FILES.length === 0 || game.currentMode === 'tracker') return; const randomIndex = Math.floor(Math.random() * BACKGROUND_MUSIC_FILES.length); const musicFile = BACKGROUND_MUSIC_FILES[randomIndex]; console.log(`Starting background music: ${musicFile}`); try { game.backgroundMusic = new Audio(musicFile); game.backgroundMusic.loop = true; game.backgroundMusic.volume = game.musicVolumePreference; volumeSlider.value = game.musicVolumePreference; game.backgroundMusic.play().catch(error => { console.warn(`Background music play error (${musicFile}):`, error); game.backgroundMusic = null; }); } catch(e) { console.error(`Error creating Audio for background music ${musicFile}`, e); game.backgroundMusic = null; } }
+  function stopBackgroundMusic() { if (game.backgroundMusic) { try { console.log("Stopping background music"); game.backgroundMusic.pause(); game.backgroundMusic.currentTime = 0; game.backgroundMusic = null; } catch(e) { console.error("Error stopping background music", e); game.backgroundMusic = null; } } }
+  function toggleMute() { game.isMuted = !game.isMuted; console.log("Mute toggled. Is muted:", game.isMuted); muteBtn.innerText = game.isMuted ? 'Unmute' : 'Mute'; muteBtn.style.backgroundColor = game.isMuted ? '#f44336' : '#555'; if (game.isMuted) { stopBackgroundMusic(); } else { if (game.isGameRunning) { startBackgroundMusic(); } } }
+  function updateMusicVolume(volume) { try { game.musicVolumePreference = parseFloat(volume); console.log("Music volume preference set to:", game.musicVolumePreference); if (game.backgroundMusic) { game.backgroundMusic.volume = game.musicVolumePreference; } } catch(e) { console.error("Error updating volume", e); } }
+
+  // --- UI UPDATES ---
+  function updateScoreboard() { if (!totalScoreEl || !roundEl || !streakEl) return; try { totalScoreEl.innerText = game.totalScore; roundEl.innerText = `${game.round}/${MAX_ROUNDS}`; streakEl.innerText = game.streak; } catch(e){ console.error("Error updating scoreboard", e); } }
+  function showFeedback(message, type = 'info', duration = 3000) { if (game.currentMode !== 'quiz' || !feedbackEl) return; try { console.log(`Showing feedback (${type}): ${message}`); feedbackEl.innerText = message; feedbackEl.className = `visible ${type}`; if (game.feedbackTimeout) clearTimeout(game.feedbackTimeout); game.feedbackTimeout = setTimeout(() => { if (feedbackEl) feedbackEl.className = ''; game.feedbackTimeout = null; }, duration); } catch(e){ console.error("Error showing feedback", e); } }
+  function updateTimerDisplay() { if (game.currentMode !== 'quiz' || !timerDisplayEl) return; try { timerDisplayEl.innerText = game.timeLeft > 0 ? `(${game.timeLeft}s)` : ''; } catch(e){ console.error("Error updating timer display", e); } }
+  function shouldShowQuizLabels() { return getProgressLevel(game.progress.xp).number <= LABEL_ASSIST_LEVELS; }
+  function updateCountryLabelVisibility() {
+      if (!map || !map.getLayer('all-country-labels')) return;
+      const visibility = (game.currentMode === 'tracker' || (game.currentMode === 'quiz' && shouldShowQuizLabels())) ? 'visible' : 'none';
+      try { map.setLayoutProperty('all-country-labels', 'visibility', visibility); }
+      catch(e) { console.error("Error updating country label visibility:", e); }
+  }
+  function getProgressLevel(xp = game.progress.xp) {
+      let index = 0;
+      for (let i = 0; i < LEVELS.length; i++) {
+          if (xp >= LEVELS[i].xp) index = i;
+      }
+      const current = LEVELS[index];
+      const next = LEVELS[index + 1] || null;
+      return { number: index + 1, current, next };
+  }
+
+  function getTrainingRegionKey(feature) {
+      const sourceId = feature?.properties?.sourceId || feature?.id;
+      const name = feature?.properties?.name;
+      return sourceId === '-99' && name ? `${sourceId}:${name}` : sourceId;
+  }
+
+  function getActiveTrainingRegion() {
+      return TRAINING_REGIONS[game.trainingRegion] ? game.trainingRegion : 'world';
+  }
+
+  function getTrainingRegionFeatures() {
+      const features = game.countriesGeoJson?.features || [];
+      const region = TRAINING_REGIONS[getActiveTrainingRegion()];
+      if (!region || !region.idSet) return features;
+      return features.filter(feature => region.idSet.has(getTrainingRegionKey(feature)));
+  }
+
+  function updateProgressionUI(note) {
+      if (!progressionTitleEl || !progressionXpEl || !progressFillEl || !progressionNoteEl) return;
+      const xp = Math.max(0, Number(game.progress.xp) || 0);
+      const level = getProgressLevel(xp);
+      const next = level.next;
+      const levelStart = level.current.xp;
+      const levelEnd = next ? next.xp : levelStart;
+      const percent = next ? Math.max(0, Math.min(100, ((xp - levelStart) / (levelEnd - levelStart)) * 100)) : 100;
+
+      progressionTitleEl.innerText = `${game.currentPlayer}: Level ${level.number} - ${level.current.title}`;
+      progressionXpEl.innerText = next ? `${xp} / ${next.xp} XP` : `${xp} XP`;
+      progressFillEl.style.width = `${percent}%`;
+      updatePlayerMenuUI();
+
+      if (note) {
+          progressionNoteEl.innerText = note;
+      } else if (next) {
+          const assistNote = level.number <= LABEL_ASSIST_LEVELS ? ' Country names visible through Level 2.' : '';
+          progressionNoteEl.innerText = `${next.xp - xp} XP to ${next.title}. Best score: ${game.progress.bestScore || 0}.${assistNote}`;
+      } else {
+          progressionNoteEl.innerText = `Top rank reached. Best score: ${game.progress.bestScore || 0}.`;
+      }
+  }
+
+  function updatePlayerMenuUI() {
+      if (currentPlayerNameEl) currentPlayerNameEl.innerText = `Playing as ${game.currentPlayer}`;
+  }
+
+  function showPlayerSetup() {
+      playerSetupPanelEl?.classList.add('active');
+      gameMenuPanelEl?.classList.remove('active');
+      refreshPlayerSelect();
+      updatePlayerMenuUI();
+  }
+
+  function showGameMenu() {
+      playerSetupPanelEl?.classList.remove('active');
+      gameMenuPanelEl?.classList.add('active');
+      updatePlayerMenuUI();
+      updateProgressionUI();
+  }
+
+  function getDefaultProgress() {
+      return { xp: 0, bestScore: 0, gamesPlayed: 0, lastGain: 0 };
+  }
+
+  function normalizeProgress(progress = {}) {
+      return {
+          xp: Math.max(0, Number(progress.xp) || 0),
+          bestScore: Math.max(0, Number(progress.bestScore) || 0),
+          gamesPlayed: Math.max(0, Number(progress.gamesPlayed) || 0),
+          lastGain: Math.max(0, Number(progress.lastGain) || 0)
+      };
+  }
+
+  function getSafePlayerName(name) {
+      const safeName = String(name || '').trim().replace(/\s+/g, ' ');
+      return safeName || DEFAULT_PLAYER_NAME;
+  }
+
+  function getUniquePlayerName(baseName) {
+      const base = getSafePlayerName(baseName);
+      if (!game.players[base]) return base;
+      let index = 2;
+      while (game.players[`${base} ${index}`]) index++;
+      return `${base} ${index}`;
+  }
+
+  function refreshPlayerSelect() {
+      if (!playerSelectEl) return;
+      playerSelectEl.innerHTML = '';
+      Object.keys(game.players).sort((a, b) => a.localeCompare(b)).forEach(name => {
+          const option = document.createElement('option');
+          option.value = name;
+          option.innerText = name;
+          playerSelectEl.appendChild(option);
+      });
+      playerSelectEl.value = game.currentPlayer;
+  }
+
+  function saveCurrentPlayerName() {
+      try { localStorage.setItem(LOCAL_STORAGE_CURRENT_PLAYER_KEY, game.currentPlayer); }
+      catch (e) { console.error("Error saving current player:", e); }
+  }
+
+  function loadProgressionData() {
+      try {
+          const playersData = localStorage.getItem(LOCAL_STORAGE_PLAYERS_KEY);
+          const parsedPlayers = playersData ? JSON.parse(playersData) : null;
+          game.players = {};
+
+          if (parsedPlayers && typeof parsedPlayers === 'object' && !Array.isArray(parsedPlayers)) {
+              Object.entries(parsedPlayers).forEach(([name, progress]) => {
+                  const safeName = getSafePlayerName(name);
+                  game.players[safeName] = normalizeProgress(progress);
+              });
+          }
+
+          if (Object.keys(game.players).length === 0) {
+              const oldData = localStorage.getItem(LOCAL_STORAGE_PROGRESS_KEY);
+              const oldProgress = oldData ? JSON.parse(oldData) : {};
+              game.players[DEFAULT_PLAYER_NAME] = normalizeProgress(oldProgress);
+          }
+
+          const savedPlayer = getSafePlayerName(localStorage.getItem(LOCAL_STORAGE_CURRENT_PLAYER_KEY));
+          game.currentPlayer = game.players[savedPlayer] ? savedPlayer : Object.keys(game.players)[0];
+          game.progress = normalizeProgress(game.players[game.currentPlayer]);
+      } catch (e) {
+          console.error("Error loading progression data:", e);
+          game.currentPlayer = DEFAULT_PLAYER_NAME;
+          game.players = { [DEFAULT_PLAYER_NAME]: getDefaultProgress() };
+          game.progress = getDefaultProgress();
+      }
+      saveProgressionData();
+      refreshPlayerSelect();
+      updateProgressionUI();
+  }
+
+  function saveProgressionData() {
+      try {
+          game.players[game.currentPlayer] = normalizeProgress(game.progress);
+          localStorage.setItem(LOCAL_STORAGE_PLAYERS_KEY, JSON.stringify(game.players));
+          saveCurrentPlayerName();
+          localStorage.setItem(LOCAL_STORAGE_PROGRESS_KEY, JSON.stringify({
+              xp: game.progress.xp,
+              bestScore: game.progress.bestScore,
+              gamesPlayed: game.progress.gamesPlayed
+          }));
+      } catch (e) {
+          console.error("Error saving progression data:", e);
+      }
+  }
+
+  function switchPlayer(playerName) {
+      const safeName = getSafePlayerName(playerName);
+      if (!game.players[safeName]) return;
+      saveProgressionData();
+      game.currentPlayer = safeName;
+      game.progress = normalizeProgress(game.players[safeName]);
+      saveProgressionData();
+      refreshPlayerSelect();
+      updateProgressionUI();
+      updateCountryLabelVisibility();
+  }
+
+  function createPlayer(showMenuAfterCreate = true) {
+      const enteredName = playerNameInputEl?.value || `Player ${Object.keys(game.players).length + 1}`;
+      const newName = getUniquePlayerName(enteredName);
+      game.players[newName] = getDefaultProgress();
+      game.currentPlayer = newName;
+      game.progress = getDefaultProgress();
+      if (playerNameInputEl) playerNameInputEl.value = '';
+      saveProgressionData();
+      refreshPlayerSelect();
+      updateProgressionUI('New player ready. Score starts at 0.');
+      updateCountryLabelVisibility();
+      if (showMenuAfterCreate) showGameMenu();
+  }
+
+  function continueWithPlayer() {
+      const enteredName = playerNameInputEl?.value.trim();
+      if (enteredName) {
+          createPlayer(true);
+          return;
+      }
+      switchPlayer(playerSelectEl.value);
+      showGameMenu();
+  }
+
+  function resetCurrentPlayerProgress() {
+      if (!confirm(`Reset ${game.currentPlayer}'s score and progression to zero?`)) return;
+      game.progress = getDefaultProgress();
+      game.players[game.currentPlayer] = getDefaultProgress();
+      saveProgressionData();
+      refreshPlayerSelect();
+      updateProgressionUI('Score reset to 0 for this player.');
+      updateCountryLabelVisibility();
+  }
+
+  function loadSettingsData() {
+      try {
+          const data = localStorage.getItem(LOCAL_STORAGE_SETTINGS_KEY);
+          const parsed = data ? JSON.parse(data) : {};
+          if (parsed.difficulty && DIFFICULTY_SECONDS[parsed.difficulty]) {
+              game.difficulty = parsed.difficulty;
+          }
+          if (parsed.trainingRegion && TRAINING_REGIONS[parsed.trainingRegion]) {
+              game.trainingRegion = parsed.trainingRegion;
+          }
+      } catch (e) {
+          console.error("Error loading settings data:", e);
+      }
+  }
+
+  function saveSettingsData() {
+      try { localStorage.setItem(LOCAL_STORAGE_SETTINGS_KEY, JSON.stringify({ difficulty: game.difficulty, trainingRegion: getActiveTrainingRegion() })); }
+      catch (e) { console.error("Error saving settings data:", e); }
+  }
+
+  function awardProgressionXp(score) {
+      const safeScore = Math.max(0, Math.round(Number(score) || 0));
+      const participationXp = game.round > 0 ? PARTICIPATION_XP : 0;
+      const scoreXp = Math.floor(safeScore / SCORE_TO_XP_DIVISOR);
+      const missedPenalty = game.incorrectlyGuessedCountries.size * MISSED_COUNTRY_XP_PENALTY;
+      const gain = Math.min(MAX_XP_PER_GAME, Math.max(0, scoreXp + participationXp - missedPenalty));
+      const before = getProgressLevel(game.progress.xp);
+
+      game.progress.xp += gain;
+      game.progress.bestScore = Math.max(game.progress.bestScore || 0, safeScore);
+      game.progress.gamesPlayed += 1;
+      game.progress.lastGain = gain;
+
+      const after = getProgressLevel(game.progress.xp);
+      saveProgressionData();
+      updateProgressionUI(`+${gain} XP earned this game. ${after.number > before.number ? `New level: ${after.current.title}!` : `${after.next ? `${after.next.xp - game.progress.xp} XP to ${after.next.title}.` : 'Top rank reached.'}`}`);
+      return { gain, leveledUp: after.number > before.number, level: after };
+  }
+  function clearHighlight() { try { if (map && map.getSource('highlight-source') && map.getLayer('highlight-layer')) { map.getSource('highlight-source').setData({ type: 'FeatureCollection', features: [] }); console.log("Temp highlight cleared."); } } catch(e) { console.error("Error clearing highlight:", e)} }
+  function highlightCountry(countryFeature) { if (game.currentMode !== 'quiz') return; const countryName = countryFeature?.properties?.name || "Unknown"; console.log(`Highlighting: ${countryName}`); try { clearHighlight(); if (map && map.getSource('highlight-source') && map.getLayer('highlight-layer') && countryFeature) { map.getSource('highlight-source').setData(countryFeature); } else if (!countryFeature) { console.warn("highlightCountry null feature"); } } catch(e) { console.error("Error highlighting country:", e)} }
+  function clearMarker() { try { if (game.currentMarker) { game.currentMarker.remove(); game.currentMarker = null; console.log("Marker cleared"); } } catch(e) { console.error("Error clearing marker:", e)} }
+  function addMarker(lngLat, color = 'red') { if (game.currentMode !== 'quiz') return; try { clearMarker(); if (!Array.isArray(lngLat) || lngLat.length !== 2 || typeof lngLat[0] !== 'number' || typeof lngLat[1] !== 'number') { console.error("Invalid LngLat for addMarker:", lngLat); return; } console.log("Adding marker:", lngLat, color); game.currentMarker = new maplibregl.Marker({ color: color }).setLngLat(lngLat).addTo(map); } catch(e) { console.error("Error adding marker:", e)} }
+  function getMissedCountriesFilter() {
+      const names = Array.from(game.incorrectlyGuessedCountries);
+      return names.length ? ['in', ['get', 'name'], ['literal', names]] : ['==', ['get', 'name'], '__none__'];
+  }
+
+  function updateMissedCountriesUI() {
+      if (game.currentMode !== 'quiz' || !incorrectListEl || !incorrectListContainerEl) return;
+      try {
+          incorrectListEl.innerHTML = '';
+          const sortedNames = Array.from(game.incorrectlyGuessedCountries).sort();
+
+          if (sortedNames.length === 0) {
+              incorrectListContainerEl.classList.remove('visible');
+              incorrectListContainerEl.style.display = 'none';
+          } else {
+              incorrectListContainerEl.classList.add('visible');
+              incorrectListContainerEl.style.display = 'block';
+              sortedNames.forEach(name => {
+                  const listItem = document.createElement('li');
+                  listItem.textContent = name;
+                  incorrectListEl.appendChild(listItem);
+              });
+              incorrectListContainerEl.scrollTop = incorrectListContainerEl.scrollHeight;
+          }
+
+          if (map && map.isStyleLoaded()) {
+              const filter = getMissedCountriesFilter();
+              ['missed-country-fill-layer', 'missed-country-outline-glow-layer', 'missed-country-outline-layer'].forEach(layerId => {
+                  if (map.getLayer(layerId)) map.setFilter(layerId, filter);
+              });
+
+              if (map.getSource('missed-labels-source')) {
+                  const labelFeatures = [];
+                  for (const name of game.incorrectlyGuessedCountries) {
+                      const feat = game.countryFeaturesMap.get(name);
+                      if (feat?.properties?.center) {
+                          labelFeatures.push({ type: 'Feature', geometry: { type: 'Point', coordinates: feat.properties.center }, properties: { name } });
+                      }
+                  }
+                  map.getSource('missed-labels-source').setData({ type: 'FeatureCollection', features: labelFeatures });
+              }
+
+              if (map.getSource('persistent-red-source')) {
+                  const missedFeatures = [];
+                  for (const name of game.incorrectlyGuessedCountries) {
+                      const feat = game.countryFeaturesMap.get(name);
+                      if (feat) missedFeatures.push(feat);
+                  }
+                  map.getSource('persistent-red-source').setData({ type: 'FeatureCollection', features: missedFeatures });
+              }
+          }
+      } catch(e) {
+          console.error("Error updating missed countries UI", e);
+      }
+  }
+
+  // --- Tracker Data Handling ---
+  function loadTrackerData() {
+      console.log("Loading tracker data...");
+      try { const visitedData = localStorage.getItem(LOCAL_STORAGE_VISITED_KEY); const wishlistData = localStorage.getItem(LOCAL_STORAGE_WISHLIST_KEY); game.visitedCountries = visitedData ? new Set(JSON.parse(visitedData)) : new Set(); game.wishlistCountries = wishlistData ? new Set(JSON.parse(wishlistData)) : new Set(); console.log(`Loaded ${game.visitedCountries.size} visited, ${game.wishlistCountries.size} wishlist.`); }
+      catch (e) { console.error("Error loading tracker data:", e); game.visitedCountries = new Set(); game.wishlistCountries = new Set(); }
+  }
+  function saveTrackerData() {
+      try { localStorage.setItem(LOCAL_STORAGE_VISITED_KEY, JSON.stringify(Array.from(game.visitedCountries))); localStorage.setItem(LOCAL_STORAGE_WISHLIST_KEY, JSON.stringify(Array.from(game.wishlistCountries))); console.log(`Saved ${game.visitedCountries.size} visited, ${game.wishlistCountries.size} wishlist.`); }
+      catch (e) { console.error("Error saving tracker data:", e); }
+  }
+
+  // --- Feature State Management ---
+  function applyFeatureStates(clearOnly = false) {
+      if (!map || !map.isStyleLoaded() || !game.countriesGeoJson) { console.warn("ApplyFeatureStates: Map/Style/Data not ready."); return; }
+      console.log(`Applying feature states (Clear: ${clearOnly})...`);
+      try {
+          const features = game.countriesGeoJson.features; let updatedCount = 0;
+          features.forEach(feature => {
+              if (feature.id === undefined) return; // Skip features without ID
+              const countryName = feature.properties.name; let visited = false; let wishlist = false;
+              if (!clearOnly && countryName) { visited = game.visitedCountries.has(countryName); wishlist = game.wishlistCountries.has(countryName); }
+              const currentState = map.getFeatureState({ source: 'countries', id: feature.id }) || {};
+              // Set state only if it's different or if clearing is requested and state exists
+              if ((currentState.visited !== visited || currentState.wishlist !== wishlist) || (clearOnly && (currentState.visited || currentState.wishlist))) {
+                  map.setFeatureState({ source: 'countries', id: feature.id }, { visited: visited, wishlist: wishlist }); updatedCount++;
+              }
+          });
+          console.log(`Applied/Cleared states for ${updatedCount} features.`);
+      } catch(e) { console.error("Error applying feature states", e); }
+  }
+
+  // --- UI Visibility Management ---
+  function setUIVisibility(mode) {
+      console.log("Setting UI visibility for mode:", mode);
+      try {
+          document.body.classList.remove('mode-menu', 'mode-quiz', 'mode-tracker');
+          document.body.classList.add(`mode-${mode}`);
+          const isMenu = mode === 'menu';
+          const isQuiz = mode === 'quiz';
+          const isTracker = mode === 'tracker';
+
+          if (splashScreen) { splashScreen.style.display = isMenu ? 'flex' : 'none'; splashScreen.classList.toggle('hidden', !isMenu); }
+          // Show scoreboard ONLY in quiz mode now
+          if (scoreboardEl) scoreboardEl.style.display = isQuiz ? 'flex' : 'none';
+          if (feedbackEl) { feedbackEl.style.display = isQuiz ? 'block' : 'none'; if (!isQuiz) feedbackEl.className = ''; }
+          if (exitGameBtn) exitGameBtn.style.display = isQuiz ? 'inline-flex' : 'none';
+          if (incorrectListContainerEl) incorrectListContainerEl.style.display = isQuiz && game.incorrectlyGuessedCountries.size > 0 ? 'block' : 'none';
+
+          // Control visibility of the NEW tracker back button
+          if (trackerBackBtn) trackerBackBtn.style.display = isTracker ? 'block' : 'none'; // <-- Control new button
+
+          // Tracker Legend Visibility
+          if (trackerLegendEl) trackerLegendEl.style.display = isTracker ? 'block' : 'none'; // <-- Control legend visibility
+
+          // Common UI
+          if (bottomLeftControls) bottomLeftControls.style.display = isMenu ? 'none' : 'flex';
+
+          console.log(`UI Visibility Set for: ${mode}`);
+      } catch(e) { console.error("Error setting UI visibility", e); }
+  }
+
+
+  // --- GAME/MODE LOGIC ---
+  async function loadGameData() {
+      console.log("loadGameData: Starting...");
+      try {
+          console.log(`Fetching ${COUNTRIES_URL}...`);
+          const res = await fetch(COUNTRIES_URL);
+          if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+          const rawGeoJson = await res.json();
+          console.log("JSON parsed.");
+
+          let processedCount = 0, failedCount = 0;
+          game.countryFeaturesMap.clear(); const validFeatures = [];
+          if (!rawGeoJson?.features) throw new Error("Invalid GeoJSON structure.");
+
+          rawGeoJson.features.forEach((f, index) => {
+              const sourceId = f.id;
+              f.id = index; // Assign ID for feature state
+              if (!f?.properties || !f.geometry) { failedCount++; return; }
+              const countryName = f.properties.name;
+              try {
+                  const center = turf.pointOnFeature(f).geometry.coordinates;
+                  f.properties.center = center;
+                  f.properties.id = index; // Add id to properties too
+                  f.properties.sourceId = sourceId;
+                  if (countryName?.trim()) { game.countryFeaturesMap.set(countryName, f); validFeatures.push(f); processedCount++; }
+                  else { failedCount++; }
+              } catch (e) { console.error(`Processing failed for ${countryName || 'Unnamed'} (Idx ${index}):`, e); f.properties.center = null; failedCount++; }
+          });
+          console.log(`loadGameData: Processed: ${processedCount}, Failed/Skipped: ${failedCount}`);
+          game.countriesGeoJson = { type: "FeatureCollection", features: validFeatures };
+          if (validFeatures.length === 0) throw new Error("No valid country features.");
+
+          console.log("Adding/Verifying map sources/layers...");
+          // 1. Ensure Source Exists (With promoteId)
+          if (!map.getSource('countries')) { map.addSource('countries', { type: 'geojson', data: game.countriesGeoJson, promoteId: 'id' }); console.log("Added 'countries' source with promoteId: 'id'."); }
+          else { map.getSource('countries').setData(game.countriesGeoJson); console.log("Updated 'countries' source."); }
+          // --- Verification Log ---
+           try { const source = map.getSource('countries'); if (source && source.promoteId === 'id') { console.log("Verified: Source 'countries' promoteId is 'id'."); } else if (source) { console.error("Verification FAILED: Source 'countries' promoteId is NOT 'id'.", source.promoteId); } else { console.error("Verification FAILED: Source 'countries' not found!"); } } catch (sourceError) { console.error("Error verifying source:", sourceError); }
+
+          // 2. Ensure Base Border Layer Exists FIRST
+          if (!map.getLayer('country-borders')) { map.addLayer({ id: 'country-borders', type: 'line', source: 'countries', paint: { 'line-color': '#ffffff', 'line-width': 0.8, 'line-opacity': 0.6 }}); console.log("Added 'country-borders'."); }
+          // 3. Add Tracker Fill Layer
+          if (!map.getLayer('country-fills-tracker')) { map.addLayer({ id: 'country-fills-tracker', type: 'fill', source: 'countries', paint: { 'fill-color': ['case', ['boolean', ['feature-state', 'visited'], false], '#4CAF50', ['boolean', ['feature-state', 'wishlist'], false], '#FFEB3B', 'rgba(100, 100, 120, 0.3)'], 'fill-opacity': 0.7 }}, 'country-borders'); console.log("Added 'country-fills-tracker'."); }
+          if (!map.getLayer('missed-country-fill-layer')) { map.addLayer({ id: 'missed-country-fill-layer', type: 'fill', source: 'countries', filter: getMissedCountriesFilter(), paint: { 'fill-color': '#FFE600', 'fill-opacity': 0.28, 'fill-antialias': false } }); console.log("Added 'missed-country-fill-layer'."); }
+          if (!map.getLayer('missed-country-outline-glow-layer')) { map.addLayer({ id: 'missed-country-outline-glow-layer', type: 'line', source: 'countries', filter: getMissedCountriesFilter(), paint: { 'line-color': '#1A1400', 'line-width': 0, 'line-opacity': 0 } }); console.log("Added 'missed-country-outline-glow-layer'."); }
+          if (!map.getLayer('missed-country-outline-layer')) { map.addLayer({ id: 'missed-country-outline-layer', type: 'line', source: 'countries', filter: getMissedCountriesFilter(), paint: { 'line-color': '#FFE600', 'line-width': 0, 'line-opacity': 0 } }); console.log("Added 'missed-country-outline-layer'."); }
+          // 4. Add Other Layers
+          if (!map.getSource('highlight-source')) { map.addSource('highlight-source', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } }); }
+          if (!map.getLayer('highlight-layer')) { map.addLayer({ id: 'highlight-layer', type: 'fill', source: 'highlight-source', paint: { 'fill-color': '#00ff00', 'fill-opacity': 0.4 } }, 'country-borders'); console.log("Added 'highlight-layer'."); }
+          if (!map.getSource('persistent-red-source')) { map.addSource('persistent-red-source', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } }); }
+          if (!map.getLayer('persistent-red-layer')) { map.addLayer({ id: 'persistent-red-layer', type: 'fill', source: 'persistent-red-source', paint: { 'fill-color': '#FFE600', 'fill-opacity': 0, 'fill-outline-color': 'rgba(0,0,0,0)' } }); console.log("Added 'persistent-red-layer'."); }
+          if (!map.getLayer('persistent-yellow-glow-layer')) { map.addLayer({ id: 'persistent-yellow-glow-layer', type: 'line', source: 'persistent-red-source', paint: { 'line-color': '#000000', 'line-width': 0, 'line-opacity': 0 } }); console.log("Added 'persistent-yellow-glow-layer'."); }
+          if (!map.getLayer('persistent-yellow-outline-layer')) { map.addLayer({ id: 'persistent-yellow-outline-layer', type: 'line', source: 'persistent-red-source', paint: { 'line-color': '#FFE600', 'line-width': 0, 'line-opacity': 0 } }); console.log("Added 'persistent-yellow-outline-layer'."); }
+          if (!map.getSource('missed-labels-source')) { map.addSource('missed-labels-source', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } }); }
+          if (!map.getLayer('missed-labels-layer')) { map.addLayer({ id: 'missed-labels-layer', type: 'symbol', source: 'missed-labels-source', layout: { 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Medium'], 'text-size': 12, 'text-anchor': 'top', 'text-offset': [0, 0.6], 'text-allow-overlap': false }, paint: { 'text-color': '#FFDDDD', 'text-halo-color': '#330000', 'text-halo-width': 1.5, 'text-halo-blur': 0.5 } }); console.log("Added 'missed-labels-layer'."); }
+          if (!map.getLayer('all-country-labels')) { map.addLayer({ id: 'all-country-labels', type: 'symbol', source: 'countries', layout: { 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Regular'], 'text-size': 11, 'text-anchor': 'center', 'text-allow-overlap': false, 'text-optional': true, 'visibility': 'none' }, paint: { 'text-color': '#ffffff', 'text-halo-color': '#111133', 'text-halo-width': 1.5, 'text-halo-blur': 1 }}); console.log("Added 'all-country-labels'."); }
+          updateCountryLabelVisibility();
+
+          // 5. Mark as Loaded and Enable Buttons
+          game.isLoaded = true; console.log("Game data marked as loaded.");
+          if(countryNameEl) countryNameEl.innerText = "Ready!";
+          if(startBtn) { startBtn.disabled = false; startBtn.innerText = "Start Game"; }
+          if(travelMapBtn) travelMapBtn.disabled = false;
+          console.log("loadGameData: Finished successfully.");
+
+      } catch (error) { console.error("--- loadGameData FAILED ---:", error); if(countryNameEl) countryNameEl.innerText = "Error!"; alert(`FATAL: Data Load Failed: ${error.message}. Check console.`); if(startBtn) { startBtn.disabled = true; startBtn.innerText = "Error"; } if(travelMapBtn) travelMapBtn.disabled = true; }
+  }
+
+  // --- Updated enterTrackerMode ---
+  function enterTrackerMode() {
+      if (!game.isLoaded) { alert("Map data not loaded yet."); return; }
+      console.log("Entering Tracker Mode...");
+      game.currentMode = 'tracker'; game.isGameRunning = false;
+      stopBackgroundMusic(); clearMarker(); clearHighlight();
+      setUIVisibility('tracker');
+
+      // Show country names in tracker mode
+      try { if (map.getLayer('all-country-labels')) { map.setLayoutProperty('all-country-labels', 'visibility', 'visible'); console.log("Tracker Mode: Set country labels visible."); } else { console.warn("Layer 'all-country-labels' not found."); } } catch(e) { console.error("Error showing country labels:", e); }
+
+      map.flyTo({ center: [0, 20], zoom: 1.8, pitch: 0, bearing: 0, speed: 0.8 });
+      map.once('idle', () => {
+          console.log("Map idle after entering tracker mode. Applying states.");
+          loadTrackerData(); applyFeatureStates();
+          console.log("Tracker Mode setup complete and idle.");
+      });
+  }
+  // --- Updated exitTrackerMode ---
+  function exitTrackerMode() {
+      console.log("Exiting Tracker Mode...");
+      game.currentMode = 'menu';
+      setUIVisibility('menu');
+      applyFeatureStates(true); // Clear visuals
+
+      // Hide country names when exiting tracker mode
+      try { if (map.getLayer('all-country-labels')) { map.setLayoutProperty('all-country-labels', 'visibility', 'none'); console.log("Exiting Tracker Mode: Set country labels hidden."); } } catch(e) { console.error("Error hiding country labels:", e); }
+
+      console.log("Returned to Menu.");
+  }
+
+  function startGame() {
+      console.log("startGame called");
+      if (!game.isLoaded || game.isGameRunning) { console.warn(`Start denied (Loaded: ${game.isLoaded}, Running: ${game.isGameRunning}).`); return; }
+
+      game.currentMode = 'quiz'; game.isGameRunning = true;
+      if (!game.isMuted) playSound('start');
+      startBackgroundMusic();
+      game.totalScore = 0; game.round = 0; game.streak = 0;
+      game.difficulty = DIFFICULTY_SECONDS[difficultySelect.value] ? difficultySelect.value : 'medium';
+      game.trainingRegion = TRAINING_REGIONS[trainingRegionSelect.value] ? trainingRegionSelect.value : 'world';
+      saveSettingsData();
+      game.isInputAllowed = false; game.incorrectlyGuessedCountries.clear();
+      setUIVisibility('quiz');
+      applyFeatureStates(true); // Clear tracker visuals
+      updateMissedCountriesUI(); updateScoreboard();
+
+      updateCountryLabelVisibility();
+
+      setTimeout(() => { console.log("Starting first round..."); pickNextCountry(); }, 500);
+  }
+
+  function pickNextCountry() {
+       if (game.currentMode !== 'quiz' || !game.isGameRunning) return;
+      console.log(`--- pickNextCountry: round ${game.round + 1} ---`);
+      clearHighlight(); clearMarker();
+      if (game.feedbackTimeout) clearTimeout(game.feedbackTimeout); if(feedbackEl) feedbackEl.className = '';
+
+      if (game.round >= MAX_ROUNDS) { console.log("Max rounds reached."); endGame(); return; }
+      game.round++;
+      game.currentCountry = getRandomCountry();
+      if (!game.currentCountry) { console.error("Failed to get country."); endGame("Error selecting country."); return; }
+
+      console.log(`Selected: ${game.currentCountry.properties.name}`);
+      if(countryNameEl) countryNameEl.innerText = game.currentCountry.properties.name;
+      updateScoreboard();
+
+      const neutralCenter = [0, 20], neutralZoom = 1.8, neutralPitch = 0, neutralBearing = 0;
+      console.log("Resetting view...");
+      map.flyTo({ center: neutralCenter, zoom: neutralZoom, pitch: neutralPitch, bearing: neutralBearing, speed: 0.7, curve: 1, essential: true });
+
+      let inputEnabled = false;
+      const enableInput = () => {
+          if (inputEnabled || !game.isGameRunning || game.currentMode !== 'quiz') return;
+          inputEnabled = true; console.log("Enabling quiz input.");
+          startTimer();
+          game.isInputAllowed = true;
+      };
+      map.once('moveend', enableInput);
+      setTimeout(() => { if (!inputEnabled && game.isGameRunning && game.currentMode === 'quiz') { console.warn("Moveend fallback."); enableInput(); } }, 1500);
+      console.log("pickNextCountry setup finished.");
+  }
+
+  function getRandomCountry() {
+      console.log("Selecting random country...");
+      const features = game.countriesGeoJson?.features;
+      if (!features?.length) { console.error("No countries available!"); return null; }
+      const eligibleFeatures = getTrainingRegionFeatures();
+      const pool = eligibleFeatures.length ? eligibleFeatures : features;
+      const region = TRAINING_REGIONS[getActiveTrainingRegion()];
+      console.log(`Training pool: ${region?.title || 'World'} (${pool.length} countries).`);
+      let attempts = 0; const maxAttempts = pool.length * 2;
+      while(attempts < maxAttempts) {
+        attempts++;
+        const idx = Math.floor(Math.random() * pool.length);
+        const country = pool[idx];
+        if (country?.properties?.name && country.geometry && country.properties.center && country.id !== undefined) { return country; }
+      }
+      console.error(`Could not find valid country after ${maxAttempts} attempts.`); return null;
+  }
+
+  function startTimer() {
+      clearInterval(game.timerInterval);
+      game.timeLeft = DIFFICULTY_SECONDS[game.difficulty] || DIFFICULTY_SECONDS.medium;
+      console.log(`Starting timer: ${game.timeLeft}s.`);
+      updateTimerDisplay();
+      game.timerInterval = setInterval(() => {
+          if (!game.isGameRunning) { clearInterval(game.timerInterval); return; }
+          game.timeLeft--; updateTimerDisplay();
+          if (game.timeLeft <= 0) { handleTimeout(); }
+      }, 1000);
+  }
+
+  function handleTimeout() {
+      if (game.currentMode !== 'quiz') return;
+      console.log("handleTimeout called");
+      clearInterval(game.timerInterval); playSound('timeout');
+      game.isInputAllowed = false; game.streak = 0; updateScoreboard();
+      const name = game.currentCountry?.properties?.name;
+      showFeedback(`Time's up! It was ${name || '???'}.`, 'incorrect', 4000);
+      if(game.currentCountry) {
+          if (game.currentCountry.properties?.center) addMarker(game.currentCountry.properties.center, 'orange');
+          if (name) { game.incorrectlyGuessedCountries.add(name); updateMissedCountriesUI(); }
+      }
+      setTimeout(() => { if(game.isGameRunning && game.currentMode === 'quiz') pickNextCountry(); }, 4500);
+  }
+
+  // --- Corrected handleMapClick ---
+  function handleMapClick(e) {
+      console.log(`--- handleMapClick start (Mode: ${game.currentMode}) ---`);
+      if (!e?.lngLat || typeof e.lngLat.lng !== 'number' || typeof e.lngLat.lat !== 'number' || !e?.point) { console.error("Invalid click event data:", e); return; }
+      const coords = [e.lngLat.lng, e.lngLat.lat];
+      const screenPoint = [e.point.x, e.point.y];
+
+      // --- QUIZ MODE ---
+      if (game.currentMode === 'quiz') {
+           if (!game.isInputAllowed || !game.currentCountry) { console.log(`Quiz click ignored.`); return; }
+          console.log(`Processing quiz click at: ${coords}`);
+          game.isInputAllowed = false; clearInterval(game.timerInterval);
+
+          const clickPt = turf.point(coords); let isCorrect = false;
+          const targetCenter = game.currentCountry.properties?.center;
+          const countryName = game.currentCountry.properties?.name || "Unknown";
+          const geom = game.currentCountry.geometry;
+
+          if (geom) { try { isCorrect = turf.booleanPointInPolygon(clickPt, geom); } catch (err) { console.error(`PointInPolygon error:`, err); } }
+          else { console.warn(`Missing geometry for ${countryName}`); }
+
+          if (isCorrect) {
+              console.log("CORRECT"); playSound('correct'); game.streak++;
+              const pts = 100 * game.streak; game.totalScore += pts;
+              showFeedback(`Correct! +${pts} pts. Streak: ${game.streak}`, 'correct', 3000);
+              if (targetCenter) explodeAtLatLng(targetCenter);
+              highlightCountry(game.currentCountry); addMarker(coords, 'green');
+          } else {
+              console.log("INCORRECT"); playSound('wrong'); game.streak = 0;
+              if (countryName !== "Unknown") { game.incorrectlyGuessedCountries.add(countryName); updateMissedCountriesUI(); }
+              let dist = 'N/A', pts = 0;
+              if (targetCenter) { try { const km = turf.distance(coords, targetCenter, {units:'kilometers'}); dist = km.toFixed(0); pts = Math.max(0, Math.round(100 - km / 50)); } catch(err) { dist = 'Err'; } }
+              else { dist = 'N/A'; }
+              game.totalScore += pts;
+              showFeedback(`Incorrect. It was ${countryName}. Dist: ${dist} km. +${pts} pts.`, 'incorrect', 4000);
+              addMarker(coords, 'red');
+          }
+          updateScoreboard();
+
+          if (targetCenter) {
+              map.flyTo({ center: targetCenter, zoom: Math.max(map.getZoom(), 4), speed: 0.5, curve: 1.5 });
+              map.once('moveend', () => {
+                  if (!isCorrect) { addMarker(targetCenter, 'orange'); }
+                  if (isCorrect) { setTimeout(clearHighlight, 1000); }
+                  const delay = isCorrect ? 1500 : 2500;
+                  setTimeout(() => { if(game.isGameRunning && game.currentMode === 'quiz') pickNextCountry(); }, delay);
+              });
+          } else {
+              if (isCorrect) { setTimeout(clearHighlight, 1000); }
+              const delay = isCorrect ? 3000 : 4000;
+              setTimeout(() => { if(game.isGameRunning && game.currentMode === 'quiz') pickNextCountry(); }, delay);
+          }
+          console.log(`--- handleMapClick (Quiz) End ---`);
+
+      // --- TRACKER MODE ---
+      } else if (game.currentMode === 'tracker') {
+          console.log(`Tracker mode detected, querying features at screen point: [${screenPoint.join(', ')}]`);
+          const features = map.queryRenderedFeatures(screenPoint, { layers: ['country-fills-tracker'] });
+
+          if (!features.length) { console.log("Tracker click did not hit a feature."); return; }
+
+          const feature = features[0];
+          const countryName = feature.properties.name;
+          // Use the ID provided by the map renderer via promoteId
+          const countryId = feature.id;
+
+          console.log('Clicked feature Name:', countryName, 'Using ID from feature.id:', countryId);
+
+          if (countryName === undefined || countryId === undefined) {
+              console.warn("Clicked feature missing name or required ID (feature.id). Cannot set state. Feature:", feature); return;
+          }
+
+          console.log(`Tracker processing click for: ${countryName} (ID: ${countryId})`);
+          let visited = game.visitedCountries.has(countryName);
+          let wishlist = game.wishlistCountries.has(countryName);
+          console.log(`Current state in Sets - Visited: ${visited}, Wishlist: ${wishlist}`);
+
+          let nextVisited = false, nextWishlist = false;
+          if (visited) { game.visitedCountries.delete(countryName); game.wishlistCountries.add(countryName); nextVisited = false; nextWishlist = true; console.log(`${countryName}: Set state V -> W`); }
+          else if (wishlist) { game.wishlistCountries.delete(countryName); nextVisited = false; nextWishlist = false; console.log(`${countryName}: Set state W -> D`); }
+          else { game.visitedCountries.add(countryName); nextVisited = true; nextWishlist = false; console.log(`${countryName}: Set state D -> V`); }
+
+          console.log('Calling map.setFeatureState with ID:', countryId, 'New State:', { visited: nextVisited, wishlist: nextWishlist });
+          try {
+              map.setFeatureState( { source: 'countries', id: countryId }, { visited: nextVisited, wishlist: nextWishlist });
+              console.log('map.setFeatureState executed.');
+          } catch (stateError) { console.error("ERROR during map.setFeatureState:", stateError); }
+
+          saveTrackerData();
+
+      } else { console.log(`Click ignored in mode: ${game.currentMode}`); }
+      console.log(`--- handleMapClick End ---`);
+  }
+  // --- End of handleMapClick ---
+
+  function endGame(message = `Game Over! Final Score: ${game.totalScore}`) {
+      if (!game.isGameRunning && message !== "Game exited early.") { return; }
+      console.log("--- endGame --- Message:", message);
+      const wasQuizRunning = game.isGameRunning;
+      game.isGameRunning = false; game.isInputAllowed = false;
+      const shouldAwardProgress = wasQuizRunning && message !== "Game exited early.";
+
+      if (shouldAwardProgress) { playSound('gameover'); }
+      stopBackgroundMusic(); clearInterval(game.timerInterval);
+      clearHighlight(); clearMarker();
+
+      try { if (map.getLayer('all-country-labels')) map.setLayoutProperty('all-country-labels', 'visibility', 'none'); } catch(e) { console.error("Err hiding labels:", e); }
+      applyFeatureStates(true); // Clear tracker states
+
+      const progressResult = shouldAwardProgress ? awardProgressionXp(game.totalScore) : null;
+      const finalMessage = progressResult
+          ? `${message} +${progressResult.gain} XP${progressResult.leveledUp ? ` - Level ${progressResult.level.number}: ${progressResult.level.current.title}` : ''}`
+          : message;
+      showFeedback(finalMessage, 'info', 10000);
+      if(countryNameEl) countryNameEl.innerText = "Game Over";
+      updateTimerDisplay();
+
+      setTimeout(() => {
+          console.log("Showing splash post-game.");
+          game.currentMode = 'menu';
+          setUIVisibility('menu');
+          showGameMenu();
+          if(countryNameEl) countryNameEl.innerText = "Play Again?";
+          if(startBtn) { startBtn.disabled = !game.isLoaded; startBtn.innerText = game.isLoaded ? "Start Game" : "Error"; }
+          if(travelMapBtn) travelMapBtn.disabled = !game.isLoaded;
+      }, 5000);
+  }
+
+  function explodeAtLatLng(coords, count = 15) { if (!Array.isArray(coords) || coords.length < 2 || typeof coords[0] !== 'number' || typeof coords[1] !== 'number') { return; } try { const point = map.project(new maplibregl.LngLat(coords[0], coords[1])); if (!point || isNaN(point.x) || isNaN(point.y)) { return; } for (let i = 0; i < count; i++) { const star = document.createElement('div'); star.className = 'star-explosion'; star.style.left = `${point.x}px`; star.style.top = `${point.y}px`; const angle = Math.random() * 2 * Math.PI; const dist = Math.random() * 80 + 30; star.style.setProperty('--dx', `${Math.cos(angle) * dist}px`); star.style.setProperty('--dy', `${Math.sin(angle) * dist}px`); document.body.appendChild(star); setTimeout(() => star.remove(), 800); } } catch(e) { console.error("Explosion error:", e); } }
+
+  function initializeMap() {
+      console.log("initializeMap: Starting...");
+      try {
+          const protocol = new pmtiles.Protocol();
+          maplibregl.addProtocol('pmtiles', protocol.tile);
+          map = new maplibregl.Map({
+              container: mapContainer, style: createMapStyle(), center: [0, 20], zoom: 1.8, pitch: 0, bearing: 0, antialias: true,
+              wheelZoomRate: 1 / 150, zoomRate: 0.4
+          });
+          console.log("Map instance created.");
+
+          map.on('load', () => {
+              console.log("map.on('load')");
+              try {
+                  map.once('idle', () => { console.log("map.on('idle'). Calling loadGameData..."); loadGameData(); });
+              } catch(loadErr) { console.error("Err in map load event:", loadErr); alert("Map resources failed to load."); }
+              map.addControl(new maplibregl.NavigationControl(), 'top-right'); map.addControl(new maplibregl.FullscreenControl());
+              map.on('click', handleMapClick); console.log("Map click listener attached.");
+          });
+          map.on('error', (e) => { console.error('MapLibre Error:', e); alert(`Map Error: ${e.error?.message || 'Unknown'}`); game.isLoaded = false; if(startBtn) startBtn.disabled=true; if(travelMapBtn) travelMapBtn.disabled=true; });
+          console.log("Map event listeners attached.");
+      } catch (initErr) { console.error("FATAL: initializeMap:", initErr); document.body.innerHTML = `<h1>FATAL MAP ERROR</h1><p>${initErr.message}</p><p>Check console.</p>`; }
+      console.log("initializeMap: Finished.");
+  }
+
+  // --- STARTUP ---
+  document.addEventListener('DOMContentLoaded', () => {
+      console.log("DOMContentLoaded: Starting setup...");
+      try {
+          // Assign DOM elements
+          mapContainer = document.getElementById('map'); splashScreen = document.getElementById('splash'); startBtn = document.getElementById('startBtn'); difficultySelect = document.getElementById('difficulty'); trainingRegionSelect = document.getElementById('trainingRegion'); countryNameEl = document.getElementById('countryName'); timerDisplayEl = document.getElementById('timerDisplay'); totalScoreEl = document.getElementById('totalScore'); roundEl = document.getElementById('round'); streakEl = document.getElementById('streak'); feedbackEl = document.getElementById('feedback'); muteBtn = document.getElementById('muteBtn'); volumeSlider = document.getElementById('volumeSlider'); incorrectListEl = document.getElementById('incorrect-list'); incorrectListContainerEl = document.getElementById('incorrect-list-container'); exitGameBtn = document.getElementById('exitGameBtn');
+          travelMapBtn = document.getElementById('travelMapBtn');
+          trackerBackBtn = document.getElementById('trackerBackBtn'); // Get the new button
+          scoreboardEl = document.getElementById('scoreboard');
+          bottomLeftControls = document.getElementById('bottom-left-controls');
+          trackerLegendEl = document.getElementById('tracker-legend'); // Get legend
+          progressionTitleEl = document.getElementById('progressionTitle');
+          progressionXpEl = document.getElementById('progressionXp');
+          progressFillEl = document.getElementById('progressFill');
+          progressionNoteEl = document.getElementById('progressionNote');
+          playerSetupPanelEl = document.getElementById('playerSetupPanel');
+          gameMenuPanelEl = document.getElementById('gameMenuPanel');
+          playerSelectEl = document.getElementById('playerSelect');
+          playerNameInputEl = document.getElementById('playerNameInput');
+          addPlayerBtn = document.getElementById('addPlayerBtn');
+          continuePlayerBtn = document.getElementById('continuePlayerBtn');
+          changePlayerBtn = document.getElementById('changePlayerBtn');
+          resetPlayerBtn = document.getElementById('resetPlayerBtn');
+          currentPlayerNameEl = document.getElementById('currentPlayerName');
+
+          // Check essential elements
+          if (!mapContainer || !splashScreen || !startBtn || !scoreboardEl || !travelMapBtn || !trackerBackBtn /* Check new button */ || !bottomLeftControls || !trackerLegendEl || !progressionTitleEl || !progressionXpEl || !progressFillEl || !progressionNoteEl || !playerSetupPanelEl || !gameMenuPanelEl || !playerSelectEl || !playerNameInputEl || !addPlayerBtn || !continuePlayerBtn || !changePlayerBtn || !resetPlayerBtn || !currentPlayerNameEl || !trainingRegionSelect ) {
+              throw new Error("One or more critical UI elements not found!");
+          }
+          console.log("DOM elements assigned.");
+
+          loadSettingsData();
+          loadProgressionData();
+          loadSounds(); console.log("Sounds loaded.");
+          initializeMap(); console.log("initializeMap called.");
+
+          // Initial UI state
+          game.currentMode = 'menu'; console.log("Initial mode: 'menu'");
+          setUIVisibility(game.currentMode);
+          showPlayerSetup();
+
+          startBtn.disabled = true; startBtn.innerText = "Loading...";
+          travelMapBtn.disabled = true;
+
+          difficultySelect.value = DIFFICULTY_SECONDS[game.difficulty] ? game.difficulty : 'medium';
+          trainingRegionSelect.value = TRAINING_REGIONS[game.trainingRegion] ? game.trainingRegion : 'world';
+          volumeSlider.value = game.musicVolumePreference;
+          muteBtn.innerText = game.isMuted ? 'Unmute' : 'Mute'; muteBtn.style.backgroundColor = game.isMuted ? '#f44336' : '#555';
+          console.log("Initial UI state configured.");
+
+          // Attach event listeners
+          console.log("Attaching event listeners...");
+          startBtn.onclick = startGame;
+          exitGameBtn.onclick = () => { if (game.isGameRunning) { endGame("Game exited early."); } };
+          travelMapBtn.onclick = enterTrackerMode;
+          trackerBackBtn.onclick = exitTrackerMode; // ADDED listener for new button
+          difficultySelect.onchange = () => { game.difficulty = DIFFICULTY_SECONDS[difficultySelect.value] ? difficultySelect.value : 'medium'; saveSettingsData(); };
+          trainingRegionSelect.onchange = () => { game.trainingRegion = TRAINING_REGIONS[trainingRegionSelect.value] ? trainingRegionSelect.value : 'world'; saveSettingsData(); };
+          playerSelectEl.onchange = () => { switchPlayer(playerSelectEl.value); };
+          addPlayerBtn.onclick = () => createPlayer(true);
+          continuePlayerBtn.onclick = continueWithPlayer;
+          changePlayerBtn.onclick = showPlayerSetup;
+          playerNameInputEl.onkeydown = (event) => { if (event.key === 'Enter') continueWithPlayer(); };
+          resetPlayerBtn.onclick = resetCurrentPlayerProgress;
+          muteBtn.onclick = toggleMute;
+          volumeSlider.oninput = () => { updateMusicVolume(volumeSlider.value); };
+          console.log("Event listeners attached.");
+
+      } catch(startupError) {
+          console.error("--- DOMContentLoaded FAILED ---:", startupError);
+          document.body.innerHTML = `<div style="padding: 20px; color: red; font-size: 18px;"><h1>FATAL STARTUP ERROR</h1><p>${startupError.message}</p><p>Check console (F12).</p></div>`;
+      }
+      console.log("DOMContentLoaded: Setup finished.");
+  });
+</script>
+
+</body>
+</html>
