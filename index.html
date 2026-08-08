@@ -250,7 +250,7 @@
         #volumeControl { display: flex; align-items: center; gap: 7px; flex: 1; min-width: 0; }
         #volumeSlider { width: 100%; }
         body.mode-menu #bottom-left-controls { display: none !important; }
-        body.mode-quiz #footer { display: none !important; }
+        body:not(.mode-menu) #footer { bottom: calc(78px + env(safe-area-inset-bottom)); }
         .maplibregl-ctrl-top-right { top: auto !important; right: 10px !important; bottom: calc(82px + env(safe-area-inset-bottom)); }
         .maplibregl-ctrl-bottom-right { bottom: calc(8px + env(safe-area-inset-bottom)); }
         .maplibregl-ctrl-bottom-left { display: none; }
@@ -299,6 +299,12 @@
       <button id="trainingMenuBtn" class="mainMenuButton" type="button">Training</button>
       <button id="travelMapBtn" class="mainMenuButton" disabled>My Travel Map</button>
       <div id="lastScore" aria-live="polite">Last score: 0</div>
+    </div>
+    <div id="gameDifficultyPanel" class="menu-step">
+      <h2 class="menu-step-title">Choose difficulty</h2>
+      <label> Difficulty: <select id="gameDifficulty" style="padding: 5px;"> <option value="easy">Easy (30s)</option> <option value="medium" selected>Medium (20s)</option> <option value="hard">Hard (15s)</option> <option value="expert">Expert (10s)</option> </select> </label>
+      <button id="beginGameBtn" class="trainingMenuButton" disabled>Start Game</button>
+      <button id="gameDifficultyBackBtn" class="trainingMenuButton" type="button">Back</button>
     </div>
     <div id="trainingMenuPanel" class="menu-step">
       <h2 class="menu-step-title">Training</h2>
@@ -471,7 +477,7 @@
   }
 
   // --- DOM ELEMENTS ---
-  let mapContainer, splashScreen, startBtn, startTrainingBtn, trainingMenuBtn, trainingBackBtn, difficultySelect, trainingRegionSelect, countryNameEl,
+  let mapContainer, splashScreen, startBtn, beginGameBtn, gameDifficultyBackBtn, gameDifficultySelect, startTrainingBtn, trainingMenuBtn, trainingBackBtn, difficultySelect, trainingRegionSelect, countryNameEl,
       timerDisplayEl, totalScoreEl, roundEl, streakEl, feedbackEl, muteBtn,
       volumeSlider, incorrectListEl, incorrectListContainerEl, exitGameBtn,
       travelMapBtn, trackerBackBtn, // <-- ADDED trackerBackBtn, removed old backToMenuBtn
@@ -481,7 +487,7 @@
   // --- MAP & GAME STATE ---
   let map;
   let progressionTitleEl, progressionXpEl, progressFillEl, progressionNoteEl,
-      playerSetupPanelEl, gameMenuPanelEl, trainingMenuPanelEl, playerNameInputEl,
+      playerSetupPanelEl, gameMenuPanelEl, gameDifficultyPanelEl, trainingMenuPanelEl, playerNameInputEl,
       createPlayerBtn, lastScoreEl;
   const game = {
     currentMode: 'menu', // 'menu', 'quiz', 'tracker'
@@ -576,6 +582,7 @@
   function showPlayerSetup() {
       playerSetupPanelEl?.classList.add('active');
       gameMenuPanelEl?.classList.remove('active');
+      gameDifficultyPanelEl?.classList.remove('active');
       trainingMenuPanelEl?.classList.remove('active');
       playerNameInputEl?.focus();
   }
@@ -583,6 +590,7 @@
   function showGameMenu() {
       playerSetupPanelEl?.classList.remove('active');
       gameMenuPanelEl?.classList.add('active');
+      gameDifficultyPanelEl?.classList.remove('active');
       trainingMenuPanelEl?.classList.remove('active');
       updatePlayerMenuUI();
       updateProgressionUI();
@@ -591,8 +599,16 @@
   function showTrainingMenu() {
       playerSetupPanelEl?.classList.remove('active');
       gameMenuPanelEl?.classList.remove('active');
+      gameDifficultyPanelEl?.classList.remove('active');
       trainingMenuPanelEl?.classList.add('active');
       updateProgressionUI();
+  }
+
+  function showGameDifficultyMenu() {
+      playerSetupPanelEl?.classList.remove('active');
+      gameMenuPanelEl?.classList.remove('active');
+      trainingMenuPanelEl?.classList.remove('active');
+      gameDifficultyPanelEl?.classList.add('active');
   }
 
   function getDefaultProgress() {
@@ -919,11 +935,12 @@
           game.isLoaded = true; console.log("Game data marked as loaded.");
           if(countryNameEl) countryNameEl.innerText = "Ready!";
           if(startBtn) { startBtn.disabled = false; startBtn.innerText = "Start Game"; }
+          if(beginGameBtn) { beginGameBtn.disabled = false; beginGameBtn.innerText = "Start Game"; }
           if(startTrainingBtn) { startTrainingBtn.disabled = false; startTrainingBtn.innerText = "Start Training"; }
           if(travelMapBtn) travelMapBtn.disabled = false;
           console.log("loadGameData: Finished successfully.");
 
-      } catch (error) { console.error("--- loadGameData FAILED ---:", error); if(countryNameEl) countryNameEl.innerText = "Error!"; alert(`FATAL: Data Load Failed: ${error.message}. Check console.`); if(startBtn) { startBtn.disabled = true; startBtn.innerText = "Error"; } if(startTrainingBtn) { startTrainingBtn.disabled = true; startTrainingBtn.innerText = "Error"; } if(travelMapBtn) travelMapBtn.disabled = true; }
+      } catch (error) { console.error("--- loadGameData FAILED ---:", error); if(countryNameEl) countryNameEl.innerText = "Error!"; alert(`FATAL: Data Load Failed: ${error.message}. Check console.`); if(startBtn) { startBtn.disabled = true; startBtn.innerText = "Error"; } if(beginGameBtn) { beginGameBtn.disabled = true; beginGameBtn.innerText = "Error"; } if(startTrainingBtn) { startTrainingBtn.disabled = true; startTrainingBtn.innerText = "Error"; } if(travelMapBtn) travelMapBtn.disabled = true; }
   }
 
   // --- Updated enterTrackerMode ---
@@ -965,7 +982,8 @@
       if (!game.isMuted) playSound('start');
       startBackgroundMusic();
       game.totalScore = 0; game.round = 0; game.streak = 0;
-      game.difficulty = isTraining && DIFFICULTY_SECONDS[difficultySelect.value] ? difficultySelect.value : 'medium';
+      const selectedDifficulty = isTraining ? difficultySelect.value : gameDifficultySelect.value;
+      game.difficulty = DIFFICULTY_SECONDS[selectedDifficulty] ? selectedDifficulty : 'medium';
       game.trainingRegion = isTraining && TRAINING_REGIONS[trainingRegionSelect.value] ? trainingRegionSelect.value : 'world';
       saveSettingsData();
       game.isInputAllowed = false; game.incorrectlyGuessedCountries.clear();
@@ -1177,6 +1195,7 @@
           showGameMenu();
           if(countryNameEl) countryNameEl.innerText = "Play Again?";
           if(startBtn) { startBtn.disabled = !game.isLoaded; startBtn.innerText = game.isLoaded ? "Start Game" : "Error"; }
+          if(beginGameBtn) { beginGameBtn.disabled = !game.isLoaded; beginGameBtn.innerText = game.isLoaded ? "Start Game" : "Error"; }
           if(startTrainingBtn) { startTrainingBtn.disabled = !game.isLoaded; startTrainingBtn.innerText = game.isLoaded ? "Start Training" : "Error"; }
           if(travelMapBtn) travelMapBtn.disabled = !game.isLoaded;
       }, 5000);
@@ -1214,7 +1233,7 @@
       console.log("DOMContentLoaded: Starting setup...");
       try {
           // Assign DOM elements
-          mapContainer = document.getElementById('map'); splashScreen = document.getElementById('splash'); startBtn = document.getElementById('startBtn'); startTrainingBtn = document.getElementById('startTrainingBtn'); trainingMenuBtn = document.getElementById('trainingMenuBtn'); trainingBackBtn = document.getElementById('trainingBackBtn'); difficultySelect = document.getElementById('difficulty'); trainingRegionSelect = document.getElementById('trainingRegion'); countryNameEl = document.getElementById('countryName'); timerDisplayEl = document.getElementById('timerDisplay'); totalScoreEl = document.getElementById('totalScore'); roundEl = document.getElementById('round'); streakEl = document.getElementById('streak'); feedbackEl = document.getElementById('feedback'); muteBtn = document.getElementById('muteBtn'); volumeSlider = document.getElementById('volumeSlider'); incorrectListEl = document.getElementById('incorrect-list'); incorrectListContainerEl = document.getElementById('incorrect-list-container'); exitGameBtn = document.getElementById('exitGameBtn');
+          mapContainer = document.getElementById('map'); splashScreen = document.getElementById('splash'); startBtn = document.getElementById('startBtn'); beginGameBtn = document.getElementById('beginGameBtn'); gameDifficultyBackBtn = document.getElementById('gameDifficultyBackBtn'); gameDifficultySelect = document.getElementById('gameDifficulty'); startTrainingBtn = document.getElementById('startTrainingBtn'); trainingMenuBtn = document.getElementById('trainingMenuBtn'); trainingBackBtn = document.getElementById('trainingBackBtn'); difficultySelect = document.getElementById('difficulty'); trainingRegionSelect = document.getElementById('trainingRegion'); countryNameEl = document.getElementById('countryName'); timerDisplayEl = document.getElementById('timerDisplay'); totalScoreEl = document.getElementById('totalScore'); roundEl = document.getElementById('round'); streakEl = document.getElementById('streak'); feedbackEl = document.getElementById('feedback'); muteBtn = document.getElementById('muteBtn'); volumeSlider = document.getElementById('volumeSlider'); incorrectListEl = document.getElementById('incorrect-list'); incorrectListContainerEl = document.getElementById('incorrect-list-container'); exitGameBtn = document.getElementById('exitGameBtn');
           travelMapBtn = document.getElementById('travelMapBtn');
           trackerBackBtn = document.getElementById('trackerBackBtn'); // Get the new button
           scoreboardEl = document.getElementById('scoreboard');
@@ -1226,13 +1245,14 @@
           progressionNoteEl = document.getElementById('progressionNote');
           playerSetupPanelEl = document.getElementById('playerSetupPanel');
           gameMenuPanelEl = document.getElementById('gameMenuPanel');
+          gameDifficultyPanelEl = document.getElementById('gameDifficultyPanel');
           trainingMenuPanelEl = document.getElementById('trainingMenuPanel');
           playerNameInputEl = document.getElementById('playerNameInput');
           createPlayerBtn = document.getElementById('createPlayerBtn');
           lastScoreEl = document.getElementById('lastScore');
 
           // Check essential elements
-          if (!mapContainer || !splashScreen || !startBtn || !startTrainingBtn || !trainingMenuBtn || !trainingBackBtn || !scoreboardEl || !travelMapBtn || !trackerBackBtn /* Check new button */ || !bottomLeftControls || !trackerLegendEl || !progressionTitleEl || !progressionXpEl || !progressFillEl || !progressionNoteEl || !playerSetupPanelEl || !gameMenuPanelEl || !trainingMenuPanelEl || !playerNameInputEl || !createPlayerBtn || !lastScoreEl || !trainingRegionSelect ) {
+          if (!mapContainer || !splashScreen || !startBtn || !beginGameBtn || !gameDifficultyBackBtn || !gameDifficultySelect || !startTrainingBtn || !trainingMenuBtn || !trainingBackBtn || !scoreboardEl || !travelMapBtn || !trackerBackBtn /* Check new button */ || !bottomLeftControls || !trackerLegendEl || !progressionTitleEl || !progressionXpEl || !progressFillEl || !progressionNoteEl || !playerSetupPanelEl || !gameMenuPanelEl || !gameDifficultyPanelEl || !trainingMenuPanelEl || !playerNameInputEl || !createPlayerBtn || !lastScoreEl || !trainingRegionSelect ) {
               throw new Error("One or more critical UI elements not found!");
           }
           console.log("DOM elements assigned.");
@@ -1249,10 +1269,12 @@
           else showPlayerSetup();
 
           startBtn.disabled = true; startBtn.innerText = "Loading...";
+          beginGameBtn.disabled = true; beginGameBtn.innerText = "Loading...";
           startTrainingBtn.disabled = true; startTrainingBtn.innerText = "Loading...";
           travelMapBtn.disabled = true;
 
           difficultySelect.value = DIFFICULTY_SECONDS[game.difficulty] ? game.difficulty : 'medium';
+          gameDifficultySelect.value = DIFFICULTY_SECONDS[game.difficulty] ? game.difficulty : 'medium';
           trainingRegionSelect.value = TRAINING_REGIONS[game.trainingRegion] ? game.trainingRegion : 'world';
           volumeSlider.value = game.musicVolumePreference;
           muteBtn.innerText = game.isMuted ? 'Unmute' : 'Mute'; muteBtn.style.backgroundColor = game.isMuted ? '#f44336' : '#555';
@@ -1260,7 +1282,9 @@
 
           // Attach event listeners
           console.log("Attaching event listeners...");
-          startBtn.onclick = () => startGame(false);
+          startBtn.onclick = showGameDifficultyMenu;
+          beginGameBtn.onclick = () => startGame(false);
+          gameDifficultyBackBtn.onclick = showGameMenu;
           trainingMenuBtn.onclick = showTrainingMenu;
           trainingBackBtn.onclick = showGameMenu;
           startTrainingBtn.onclick = () => startGame(true);
