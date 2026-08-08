@@ -114,6 +114,7 @@
 
     /* --- Bottom Left Controls --- */
     #bottom-left-controls { position: absolute; bottom: calc(15px + env(safe-area-inset-bottom)); left: 15px; z-index: 3; background: rgba(3, 10, 18, 0.72); padding: 10px 15px; border-radius: 8px; display: flex; align-items: center; gap: 15px; pointer-events: auto; backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.2); }
+    body:not(.mode-menu) #footer { bottom: calc(76px + env(safe-area-inset-bottom)); }
     #muteBtn { padding: 5px 10px; font-size: 14px; cursor: pointer; background-color: #555; color: white; border: 1px solid #888; border-radius: 4px; min-width: 70px; text-align: center; transition: background-color 0.3s ease;}
     #muteBtn:hover { background-color: #777; }
     #volumeControl label { font-size: 12px; margin-right: 5px; vertical-align: middle; }
@@ -220,6 +221,7 @@
         }
 
         #footer { font-size: 10px; bottom: 5px; }
+        body:not(.mode-menu) #footer { bottom: calc(108px + env(safe-area-inset-bottom)); }
 
         /* Adjust map controls positioning if needed */
         .maplibregl-ctrl-top-right { top: 55px; /* Move default controls down below our new back button */ }
