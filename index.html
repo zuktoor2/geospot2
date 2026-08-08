@@ -71,22 +71,26 @@
     .menu-step-title { margin: 0 0 14px; font-size: 20px; line-height: 1.2; color: #ffffff; }
     .menu-step { display: none; }
     .menu-step.active { display: block; }
-    #playerSetupPanel, #activePlayerPanel { margin: 4px 0 16px; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.14); }
+    #playerSetupPanel { margin: 4px 0 16px; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.14); }
     #playerSetupPanel p { margin: 0 0 14px; font-size: 14px; color: rgba(255,255,255,0.78); }
     #playerNameInput { min-height: 36px; width: min(100%, 220px); padding: 7px 9px; border: 1px solid rgba(255,255,255,0.28); border-radius: 8px; background: rgba(255,255,255,0.94); color: #111827; font-size: 14px; box-sizing: border-box; }
     #createPlayerRow { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
     .playerActions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
     .playerActions button { min-height: 38px; padding: 8px 12px; border: 0; border-radius: 8px; color: white; cursor: pointer; font-weight: 700; transition: background-color 0.2s ease, transform 0.1s ease; }
-    #currentPlayerName { display: block; margin-bottom: 10px; font-size: 17px; font-weight: 700; color: #ffffff; }
     #createPlayerBtn { background: #24a35a; }
     #createPlayerBtn:hover { background: #2fbf69; }
-    #resetPlayerBtn { background: #8b2f2f; }
-    #resetPlayerBtn:hover { background: #a23a3a; }
     .playerActions button:active { transform: scale(0.98); }
-    #startBtn { padding: 12px 25px; font-size: 18px; cursor: pointer; background-color: #24a35a; color: white; border: none; border-radius: 8px; transition: background-color 0.3s, transform 0.1s; margin-top: 10px; min-height: 44px; }
-    #startBtn:hover { background-color: #45a049; } #startBtn:active { transform: scale(0.98); }
-    #travelMapBtn { padding: 10px 20px; font-size: 16px; cursor: pointer; background-color: #2176d2; color: white; border: none; border-radius: 8px; transition: background-color 0.3s, transform 0.1s; margin-top: 15px; min-height: 44px; }
-    #travelMapBtn:hover { background-color: #1976D2; } #travelMapBtn:active { transform: scale(0.98); }
+    .mainMenuButton, .trainingMenuButton { display: block; width: 100%; padding: 12px 20px; font-size: 17px; cursor: pointer; color: white; border: none; border-radius: 8px; transition: background-color 0.3s, transform 0.1s; margin-top: 10px; min-height: 46px; }
+    .mainMenuButton:active, .trainingMenuButton:active { transform: scale(0.98); }
+    #startBtn, #startTrainingBtn { background-color: #24a35a; }
+    #startBtn:hover, #startTrainingBtn:hover { background-color: #2fbf69; }
+    #trainingMenuBtn { background-color: #d97706; }
+    #trainingMenuBtn:hover { background-color: #f59e0b; }
+    #travelMapBtn { background-color: #2176d2; }
+    #travelMapBtn:hover { background-color: #2f88ed; }
+    #trainingBackBtn { background-color: #475569; }
+    #trainingBackBtn:hover { background-color: #64748b; }
+    #lastScore { margin-top: 18px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.18); font-size: 15px; color: rgba(255,255,255,0.82); }
     #progressionPanel { margin-top: 18px; padding: 14px; border-radius: 8px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.16); text-align: left; }
     #progressionHeader { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; font-size: 14px; color: #dbeafe; }
     #progressionTitle { font-size: 16px; font-weight: 700; color: #ffffff; }
@@ -181,13 +185,12 @@
         #settings { padding: 20px 15px; width: 90%; max-width: none; }
         #settings label { font-size: 15px; }
         #settings select, #settings input[type="checkbox"] { font-size: 14px; }
-        #playerSetupPanel, #activePlayerPanel { padding: 10px; }
+        #playerSetupPanel { padding: 10px; }
         #createPlayerRow { gap: 8px; }
         #playerNameInput { flex: 1 1 150px; }
         .playerActions button { flex: 1 1 120px; }
         #progressionPanel { padding: 12px; }
-        #startBtn { padding: 12px 20px; font-size: 16px; }
-        #travelMapBtn { padding: 10px 18px; font-size: 15px; }
+        .mainMenuButton, .trainingMenuButton { padding: 12px 18px; font-size: 16px; }
 
         #bottom-left-controls {
             bottom: 10px; left: 10px; padding: 8px 10px; gap: 8px;
@@ -227,7 +230,7 @@
         #settings label { align-items: stretch; flex-direction: column; gap: 7px; margin-bottom: 14px; }
         #settings label:has(input[type="checkbox"]) { flex-direction: row; align-items: center; }
         #settings select { width: 100%; min-height: 42px; }
-        #startBtn, #travelMapBtn { width: 100%; margin: 8px 0 0; }
+        .mainMenuButton, .trainingMenuButton { width: 100%; margin: 8px 0 0; }
 
         #ui-container { padding: calc(10px + env(safe-area-inset-top)) 8px 8px; }
         #scoreboard { width: 100%; display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; align-items: stretch; padding: 0; }
@@ -292,16 +295,17 @@
       </div>
     </div>
     <div id="gameMenuPanel" class="menu-step">
-      <div id="activePlayerPanel">
-        <span id="currentPlayerName">Playing as Player 1</span>
-        <div class="playerActions">
-          <button id="resetPlayerBtn" type="button">Reset Score</button>
-        </div>
-      </div>
+      <button id="startBtn" class="mainMenuButton" disabled>Loading Data...</button>
+      <button id="trainingMenuBtn" class="mainMenuButton" type="button">Training</button>
+      <button id="travelMapBtn" class="mainMenuButton" disabled>My Travel Map</button>
+      <div id="lastScore" aria-live="polite">Last score: 0</div>
+    </div>
+    <div id="trainingMenuPanel" class="menu-step">
+      <h2 class="menu-step-title">Training</h2>
       <label> Difficulty: <select id="difficulty" style="padding: 5px;"> <option value="easy">Easy (30s)</option> <option value="medium" selected>Medium (20s)</option> <option value="hard">Hard (15s)</option> <option value="expert">Expert (10s)</option> </select> </label>
-      <label> Training: <select id="trainingRegion" style="padding: 5px;"> <option value="world" selected>World - all regions</option> <option value="africa">Africa</option> <option value="asia">Asia</option> <option value="europe">Europe</option> <option value="northAmerica">North America & Caribbean</option> <option value="southAmerica">South America</option> <option value="oceania">Oceania</option> <option value="polar">Polar & Antarctica</option> </select> </label>
-      <button id="startBtn" disabled>Loading Data...</button>
-      <button id="travelMapBtn" disabled>My Travel Map</button>
+      <label> Training type: <select id="trainingRegion" style="padding: 5px;"> <option value="world" selected>World - all regions</option> <option value="africa">Africa</option> <option value="asia">Asia</option> <option value="europe">Europe</option> <option value="northAmerica">North America & Caribbean</option> <option value="southAmerica">South America</option> <option value="oceania">Oceania</option> <option value="polar">Polar & Antarctica</option> </select> </label>
+      <button id="startTrainingBtn" class="trainingMenuButton" disabled>Loading Data...</button>
+      <button id="trainingBackBtn" class="trainingMenuButton" type="button">Back</button>
       <div id="progressionPanel" aria-live="polite">
         <div id="progressionHeader">
           <span id="progressionTitle">Level 1 - Globe Rookie</span>
@@ -467,7 +471,7 @@
   }
 
   // --- DOM ELEMENTS ---
-  let mapContainer, splashScreen, startBtn, difficultySelect, trainingRegionSelect, countryNameEl,
+  let mapContainer, splashScreen, startBtn, startTrainingBtn, trainingMenuBtn, trainingBackBtn, difficultySelect, trainingRegionSelect, countryNameEl,
       timerDisplayEl, totalScoreEl, roundEl, streakEl, feedbackEl, muteBtn,
       volumeSlider, incorrectListEl, incorrectListContainerEl, exitGameBtn,
       travelMapBtn, trackerBackBtn, // <-- ADDED trackerBackBtn, removed old backToMenuBtn
@@ -477,8 +481,8 @@
   // --- MAP & GAME STATE ---
   let map;
   let progressionTitleEl, progressionXpEl, progressFillEl, progressionNoteEl,
-      playerSetupPanelEl, gameMenuPanelEl, playerNameInputEl,
-      createPlayerBtn, resetPlayerBtn, currentPlayerNameEl;
+      playerSetupPanelEl, gameMenuPanelEl, trainingMenuPanelEl, playerNameInputEl,
+      createPlayerBtn, lastScoreEl;
   const game = {
     currentMode: 'menu', // 'menu', 'quiz', 'tracker'
     countriesGeoJson: null, countryFeaturesMap: new Map(), currentCountry: null,
@@ -492,7 +496,7 @@
     currentPlayer: DEFAULT_PLAYER_NAME,
     hasPlayerProfile: false,
     players: {},
-    progress: { xp: 0, bestScore: 0, gamesPlayed: 0, lastGain: 0 }
+    progress: { xp: 0, bestScore: 0, lastScore: 0, gamesPlayed: 0, lastGain: 0 }
   };
 
   // --- SOUND HANDLING ---
@@ -566,30 +570,40 @@
   }
 
   function updatePlayerMenuUI() {
-      if (currentPlayerNameEl) currentPlayerNameEl.innerText = `Playing as ${game.currentPlayer}`;
+      if (lastScoreEl) lastScoreEl.innerText = `Last score: ${game.progress.lastScore || 0}`;
   }
 
   function showPlayerSetup() {
       playerSetupPanelEl?.classList.add('active');
       gameMenuPanelEl?.classList.remove('active');
+      trainingMenuPanelEl?.classList.remove('active');
       playerNameInputEl?.focus();
   }
 
   function showGameMenu() {
       playerSetupPanelEl?.classList.remove('active');
       gameMenuPanelEl?.classList.add('active');
+      trainingMenuPanelEl?.classList.remove('active');
       updatePlayerMenuUI();
       updateProgressionUI();
   }
 
+  function showTrainingMenu() {
+      playerSetupPanelEl?.classList.remove('active');
+      gameMenuPanelEl?.classList.remove('active');
+      trainingMenuPanelEl?.classList.add('active');
+      updateProgressionUI();
+  }
+
   function getDefaultProgress() {
-      return { xp: 0, bestScore: 0, gamesPlayed: 0, lastGain: 0 };
+      return { xp: 0, bestScore: 0, lastScore: 0, gamesPlayed: 0, lastGain: 0 };
   }
 
   function normalizeProgress(progress = {}) {
       return {
           xp: Math.max(0, Number(progress.xp) || 0),
           bestScore: Math.max(0, Number(progress.bestScore) || 0),
+          lastScore: Math.max(0, Number(progress.lastScore) || 0),
           gamesPlayed: Math.max(0, Number(progress.gamesPlayed) || 0),
           lastGain: Math.max(0, Number(progress.lastGain) || 0)
       };
@@ -657,6 +671,7 @@
           localStorage.setItem(LOCAL_STORAGE_PROGRESS_KEY, JSON.stringify({
               xp: game.progress.xp,
               bestScore: game.progress.bestScore,
+              lastScore: game.progress.lastScore,
               gamesPlayed: game.progress.gamesPlayed
           }));
       } catch (e) {
@@ -679,15 +694,6 @@
       updateProgressionUI('Your personal progress is ready.');
       updateCountryLabelVisibility();
       showGameMenu();
-  }
-
-  function resetCurrentPlayerProgress() {
-      if (!confirm(`Reset ${game.currentPlayer}'s score and progression to zero?`)) return;
-      game.progress = getDefaultProgress();
-      game.players = { [game.currentPlayer]: getDefaultProgress() };
-      saveProgressionData();
-      updateProgressionUI('Score reset to 0 for this player.');
-      updateCountryLabelVisibility();
   }
 
   function loadSettingsData() {
@@ -720,6 +726,7 @@
 
       game.progress.xp += gain;
       game.progress.bestScore = Math.max(game.progress.bestScore || 0, safeScore);
+      game.progress.lastScore = safeScore;
       game.progress.gamesPlayed += 1;
       game.progress.lastGain = gain;
 
@@ -912,10 +919,11 @@
           game.isLoaded = true; console.log("Game data marked as loaded.");
           if(countryNameEl) countryNameEl.innerText = "Ready!";
           if(startBtn) { startBtn.disabled = false; startBtn.innerText = "Start Game"; }
+          if(startTrainingBtn) { startTrainingBtn.disabled = false; startTrainingBtn.innerText = "Start Training"; }
           if(travelMapBtn) travelMapBtn.disabled = false;
           console.log("loadGameData: Finished successfully.");
 
-      } catch (error) { console.error("--- loadGameData FAILED ---:", error); if(countryNameEl) countryNameEl.innerText = "Error!"; alert(`FATAL: Data Load Failed: ${error.message}. Check console.`); if(startBtn) { startBtn.disabled = true; startBtn.innerText = "Error"; } if(travelMapBtn) travelMapBtn.disabled = true; }
+      } catch (error) { console.error("--- loadGameData FAILED ---:", error); if(countryNameEl) countryNameEl.innerText = "Error!"; alert(`FATAL: Data Load Failed: ${error.message}. Check console.`); if(startBtn) { startBtn.disabled = true; startBtn.innerText = "Error"; } if(startTrainingBtn) { startTrainingBtn.disabled = true; startTrainingBtn.innerText = "Error"; } if(travelMapBtn) travelMapBtn.disabled = true; }
   }
 
   // --- Updated enterTrackerMode ---
@@ -949,7 +957,7 @@
       console.log("Returned to Menu.");
   }
 
-  function startGame() {
+  function startGame(isTraining = false) {
       console.log("startGame called");
       if (!game.isLoaded || game.isGameRunning) { console.warn(`Start denied (Loaded: ${game.isLoaded}, Running: ${game.isGameRunning}).`); return; }
 
@@ -957,8 +965,8 @@
       if (!game.isMuted) playSound('start');
       startBackgroundMusic();
       game.totalScore = 0; game.round = 0; game.streak = 0;
-      game.difficulty = DIFFICULTY_SECONDS[difficultySelect.value] ? difficultySelect.value : 'medium';
-      game.trainingRegion = TRAINING_REGIONS[trainingRegionSelect.value] ? trainingRegionSelect.value : 'world';
+      game.difficulty = isTraining && DIFFICULTY_SECONDS[difficultySelect.value] ? difficultySelect.value : 'medium';
+      game.trainingRegion = isTraining && TRAINING_REGIONS[trainingRegionSelect.value] ? trainingRegionSelect.value : 'world';
       saveSettingsData();
       game.isInputAllowed = false; game.incorrectlyGuessedCountries.clear();
       setUIVisibility('quiz');
@@ -1169,6 +1177,7 @@
           showGameMenu();
           if(countryNameEl) countryNameEl.innerText = "Play Again?";
           if(startBtn) { startBtn.disabled = !game.isLoaded; startBtn.innerText = game.isLoaded ? "Start Game" : "Error"; }
+          if(startTrainingBtn) { startTrainingBtn.disabled = !game.isLoaded; startTrainingBtn.innerText = game.isLoaded ? "Start Training" : "Error"; }
           if(travelMapBtn) travelMapBtn.disabled = !game.isLoaded;
       }, 5000);
   }
@@ -1205,7 +1214,7 @@
       console.log("DOMContentLoaded: Starting setup...");
       try {
           // Assign DOM elements
-          mapContainer = document.getElementById('map'); splashScreen = document.getElementById('splash'); startBtn = document.getElementById('startBtn'); difficultySelect = document.getElementById('difficulty'); trainingRegionSelect = document.getElementById('trainingRegion'); countryNameEl = document.getElementById('countryName'); timerDisplayEl = document.getElementById('timerDisplay'); totalScoreEl = document.getElementById('totalScore'); roundEl = document.getElementById('round'); streakEl = document.getElementById('streak'); feedbackEl = document.getElementById('feedback'); muteBtn = document.getElementById('muteBtn'); volumeSlider = document.getElementById('volumeSlider'); incorrectListEl = document.getElementById('incorrect-list'); incorrectListContainerEl = document.getElementById('incorrect-list-container'); exitGameBtn = document.getElementById('exitGameBtn');
+          mapContainer = document.getElementById('map'); splashScreen = document.getElementById('splash'); startBtn = document.getElementById('startBtn'); startTrainingBtn = document.getElementById('startTrainingBtn'); trainingMenuBtn = document.getElementById('trainingMenuBtn'); trainingBackBtn = document.getElementById('trainingBackBtn'); difficultySelect = document.getElementById('difficulty'); trainingRegionSelect = document.getElementById('trainingRegion'); countryNameEl = document.getElementById('countryName'); timerDisplayEl = document.getElementById('timerDisplay'); totalScoreEl = document.getElementById('totalScore'); roundEl = document.getElementById('round'); streakEl = document.getElementById('streak'); feedbackEl = document.getElementById('feedback'); muteBtn = document.getElementById('muteBtn'); volumeSlider = document.getElementById('volumeSlider'); incorrectListEl = document.getElementById('incorrect-list'); incorrectListContainerEl = document.getElementById('incorrect-list-container'); exitGameBtn = document.getElementById('exitGameBtn');
           travelMapBtn = document.getElementById('travelMapBtn');
           trackerBackBtn = document.getElementById('trackerBackBtn'); // Get the new button
           scoreboardEl = document.getElementById('scoreboard');
@@ -1217,13 +1226,13 @@
           progressionNoteEl = document.getElementById('progressionNote');
           playerSetupPanelEl = document.getElementById('playerSetupPanel');
           gameMenuPanelEl = document.getElementById('gameMenuPanel');
+          trainingMenuPanelEl = document.getElementById('trainingMenuPanel');
           playerNameInputEl = document.getElementById('playerNameInput');
           createPlayerBtn = document.getElementById('createPlayerBtn');
-          resetPlayerBtn = document.getElementById('resetPlayerBtn');
-          currentPlayerNameEl = document.getElementById('currentPlayerName');
+          lastScoreEl = document.getElementById('lastScore');
 
           // Check essential elements
-          if (!mapContainer || !splashScreen || !startBtn || !scoreboardEl || !travelMapBtn || !trackerBackBtn /* Check new button */ || !bottomLeftControls || !trackerLegendEl || !progressionTitleEl || !progressionXpEl || !progressFillEl || !progressionNoteEl || !playerSetupPanelEl || !gameMenuPanelEl || !playerNameInputEl || !createPlayerBtn || !resetPlayerBtn || !currentPlayerNameEl || !trainingRegionSelect ) {
+          if (!mapContainer || !splashScreen || !startBtn || !startTrainingBtn || !trainingMenuBtn || !trainingBackBtn || !scoreboardEl || !travelMapBtn || !trackerBackBtn /* Check new button */ || !bottomLeftControls || !trackerLegendEl || !progressionTitleEl || !progressionXpEl || !progressFillEl || !progressionNoteEl || !playerSetupPanelEl || !gameMenuPanelEl || !trainingMenuPanelEl || !playerNameInputEl || !createPlayerBtn || !lastScoreEl || !trainingRegionSelect ) {
               throw new Error("One or more critical UI elements not found!");
           }
           console.log("DOM elements assigned.");
@@ -1240,6 +1249,7 @@
           else showPlayerSetup();
 
           startBtn.disabled = true; startBtn.innerText = "Loading...";
+          startTrainingBtn.disabled = true; startTrainingBtn.innerText = "Loading...";
           travelMapBtn.disabled = true;
 
           difficultySelect.value = DIFFICULTY_SECONDS[game.difficulty] ? game.difficulty : 'medium';
@@ -1250,7 +1260,10 @@
 
           // Attach event listeners
           console.log("Attaching event listeners...");
-          startBtn.onclick = startGame;
+          startBtn.onclick = () => startGame(false);
+          trainingMenuBtn.onclick = showTrainingMenu;
+          trainingBackBtn.onclick = showGameMenu;
+          startTrainingBtn.onclick = () => startGame(true);
           exitGameBtn.onclick = () => { if (game.isGameRunning) { endGame("Game exited early."); } };
           travelMapBtn.onclick = enterTrackerMode;
           trackerBackBtn.onclick = exitTrackerMode; // ADDED listener for new button
@@ -1258,7 +1271,6 @@
           trainingRegionSelect.onchange = () => { game.trainingRegion = TRAINING_REGIONS[trainingRegionSelect.value] ? trainingRegionSelect.value : 'world'; saveSettingsData(); };
           createPlayerBtn.onclick = createPlayer;
           playerNameInputEl.onkeydown = (event) => { if (event.key === 'Enter') createPlayer(); };
-          resetPlayerBtn.onclick = resetCurrentPlayerProgress;
           muteBtn.onclick = toggleMute;
           volumeSlider.oninput = () => { updateMusicVolume(volumeSlider.value); };
           console.log("Event listeners attached.");
