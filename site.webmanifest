@@ -1,0 +1,13 @@
+{
+  "name": "GeoSpot",
+  "short_name": "GeoSpot",
+  "description": "Test your geography and track the countries you have visited.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#021a31",
+  "theme_color": "#063b67",
+  "icons": [
+    { "src": "geospot-icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "geospot-icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
