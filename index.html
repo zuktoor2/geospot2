@@ -384,6 +384,7 @@
   const LOCAL_STORAGE_PLAYER_INITIALIZED_KEY = 'geospot_player_initialized';
   const LOCAL_STORAGE_SETTINGS_KEY = 'geospot_settings';
   const MAX_LEADERBOARD_SCORES = 20;
+  const COUNTRY_MASTERY_STREAK = 3;
   const DEFAULT_PLAYER_NAME = 'Player 1';
   const DIFFICULTY_SECONDS = { easy: 30, medium: 20, hard: 15, expert: 10 };
   const SCORE_TO_XP_DIVISOR = 25;
@@ -520,7 +521,7 @@
     currentPlayer: DEFAULT_PLAYER_NAME,
     hasPlayerProfile: false,
     players: {},
-    progress: { xp: 0, bestScore: 0, lastScore: 0, gamesPlayed: 0, lastGain: 0, scores: [] }
+    progress: { xp: 0, bestScore: 0, lastScore: 0, gamesPlayed: 0, lastGain: 0, scores: [], countryCorrectStreaks: {}, masteredCountries: [] }
   };
 
   // --- SOUND HANDLING ---
@@ -565,8 +566,9 @@
   function getTrainingRegionFeatures() {
       const features = game.countriesGeoJson?.features || [];
       const region = TRAINING_REGIONS[getActiveTrainingRegion()];
-      if (!region || !region.idSet) return features;
-      return features.filter(feature => region.idSet.has(getTrainingRegionKey(feature)));
+      const regionalFeatures = (!region || !region.idSet) ? features : features.filter(feature => region.idSet.has(getTrainingRegionKey(feature)));
+      const mastered = new Set(game.progress.masteredCountries || []);
+      return regionalFeatures.filter(feature => !mastered.has(feature?.properties?.name));
   }
 
   function updateProgressionUI(note) {
@@ -666,7 +668,7 @@
   }
 
   function getDefaultProgress() {
-      return { xp: 0, bestScore: 0, lastScore: 0, gamesPlayed: 0, lastGain: 0, scores: [] };
+      return { xp: 0, bestScore: 0, lastScore: 0, gamesPlayed: 0, lastGain: 0, scores: [], countryCorrectStreaks: {}, masteredCountries: [] };
   }
 
   function normalizeProgress(progress = {}) {
@@ -680,7 +682,11 @@
               score: Math.max(0, Math.round(Number(entry?.score) || 0)),
               difficulty: DIFFICULTY_SECONDS[entry?.difficulty] ? entry.difficulty : 'medium',
               playedAt: Number(entry?.playedAt) || Date.now()
-          })).slice(0, MAX_LEADERBOARD_SCORES) : []
+          })).slice(0, MAX_LEADERBOARD_SCORES) : [],
+          countryCorrectStreaks: progress.countryCorrectStreaks && typeof progress.countryCorrectStreaks === 'object' && !Array.isArray(progress.countryCorrectStreaks)
+              ? Object.fromEntries(Object.entries(progress.countryCorrectStreaks).map(([name, count]) => [String(name), Math.max(0, Math.min(COUNTRY_MASTERY_STREAK, Math.round(Number(count) || 0)))]))
+              : {},
+          masteredCountries: Array.isArray(progress.masteredCountries) ? [...new Set(progress.masteredCountries.map(String))] : []
       };
   }
 
@@ -748,7 +754,9 @@
               bestScore: game.progress.bestScore,
               lastScore: game.progress.lastScore,
               gamesPlayed: game.progress.gamesPlayed,
-              scores: game.progress.scores
+              scores: game.progress.scores,
+              countryCorrectStreaks: game.progress.countryCorrectStreaks,
+              masteredCountries: game.progress.masteredCountries
           }));
       } catch (e) {
           console.error("Error saving progression data:", e);
@@ -822,6 +830,37 @@
   function getMissedCountriesFilter() {
       const names = Array.from(game.incorrectlyGuessedCountries);
       return names.length ? ['in', ['get', 'name'], ['literal', names]] : ['==', ['get', 'name'], '__none__'];
+  }
+
+  function getMasteredCountriesFilter() {
+      const names = game.progress.masteredCountries || [];
+      return names.length ? ['in', ['get', 'name'], ['literal', names]] : ['==', ['get', 'name'], '__none__'];
+  }
+
+  function updateMasteredCountriesLayer() {
+      try {
+          if (map?.getLayer('mastered-country-layer')) map.setFilter('mastered-country-layer', getMasteredCountriesFilter());
+      } catch (e) { console.error('Error updating mastered countries:', e); }
+  }
+
+  function recordCountryAttempt(countryName, isCorrect) {
+      if (!countryName || countryName === 'Unknown') return false;
+      const streaks = game.progress.countryCorrectStreaks || (game.progress.countryCorrectStreaks = {});
+      if (!isCorrect) {
+          streaks[countryName] = 0;
+          saveProgressionData();
+          return false;
+      }
+      const nextStreak = Math.min(COUNTRY_MASTERY_STREAK, (Number(streaks[countryName]) || 0) + 1);
+      streaks[countryName] = nextStreak;
+      if (nextStreak >= COUNTRY_MASTERY_STREAK && !game.progress.masteredCountries.includes(countryName)) {
+          game.progress.masteredCountries.push(countryName);
+          updateMasteredCountriesLayer();
+          saveProgressionData();
+          return true;
+      }
+      saveProgressionData();
+      return false;
   }
 
   function updateMissedCountriesUI() {
@@ -980,6 +1019,7 @@
           if (!map.getLayer('country-borders')) { map.addLayer({ id: 'country-borders', type: 'line', source: 'countries', paint: { 'line-color': '#ffffff', 'line-width': 0.8, 'line-opacity': 0.6 }}); console.log("Added 'country-borders'."); }
           // 3. Add Tracker Fill Layer
           if (!map.getLayer('country-fills-tracker')) { map.addLayer({ id: 'country-fills-tracker', type: 'fill', source: 'countries', paint: { 'fill-color': ['case', ['boolean', ['feature-state', 'visited'], false], '#4CAF50', ['boolean', ['feature-state', 'wishlist'], false], '#FFEB3B', 'rgba(100, 100, 120, 0.3)'], 'fill-opacity': 0.7 }}, 'country-borders'); console.log("Added 'country-fills-tracker'."); }
+          if (!map.getLayer('mastered-country-layer')) { map.addLayer({ id: 'mastered-country-layer', type: 'fill', source: 'countries', filter: getMasteredCountriesFilter(), paint: { 'fill-color': '#6b7280', 'fill-opacity': 0.82 }}, 'country-borders'); console.log("Added 'mastered-country-layer'."); }
           if (!map.getLayer('missed-country-fill-layer')) { map.addLayer({ id: 'missed-country-fill-layer', type: 'fill', source: 'countries', filter: getMissedCountriesFilter(), paint: { 'fill-color': '#FFE600', 'fill-opacity': 0.28, 'fill-antialias': false } }); console.log("Added 'missed-country-fill-layer'."); }
           if (!map.getLayer('missed-country-outline-glow-layer')) { map.addLayer({ id: 'missed-country-outline-glow-layer', type: 'line', source: 'countries', filter: getMissedCountriesFilter(), paint: { 'line-color': '#1A1400', 'line-width': 0, 'line-opacity': 0 } }); console.log("Added 'missed-country-outline-glow-layer'."); }
           if (!map.getLayer('missed-country-outline-layer')) { map.addLayer({ id: 'missed-country-outline-layer', type: 'line', source: 'countries', filter: getMissedCountriesFilter(), paint: { 'line-color': '#FFE600', 'line-width': 0, 'line-opacity': 0 } }); console.log("Added 'missed-country-outline-layer'."); }
@@ -1069,7 +1109,7 @@
       if (game.round >= MAX_ROUNDS) { console.log("Max rounds reached."); endGame(); return; }
       game.round++;
       game.currentCountry = getRandomCountry();
-      if (!game.currentCountry) { console.error("Failed to get country."); endGame("Error selecting country."); return; }
+      if (!game.currentCountry) { console.log("No unmastered countries remain in this challenge set."); endGame("Amazing! You mastered every country in this challenge set."); return; }
 
       console.log(`Selected: ${game.currentCountry.properties.name}`);
       if(countryNameEl) countryNameEl.innerText = game.currentCountry.properties.name;
@@ -1095,8 +1135,8 @@
       console.log("Selecting random country...");
       const features = game.countriesGeoJson?.features;
       if (!features?.length) { console.error("No countries available!"); return null; }
-      const eligibleFeatures = getTrainingRegionFeatures();
-      const pool = eligibleFeatures.length ? eligibleFeatures : features;
+      const pool = getTrainingRegionFeatures();
+      if (!pool.length) return null;
       const region = TRAINING_REGIONS[getActiveTrainingRegion()];
       console.log(`Training pool: ${region?.title || 'World'} (${pool.length} countries).`);
       let attempts = 0; const maxAttempts = pool.length * 2;
@@ -1127,6 +1167,7 @@
       clearInterval(game.timerInterval); playSound('timeout');
       game.isInputAllowed = false; game.streak = 0; updateScoreboard();
       const name = game.currentCountry?.properties?.name;
+      recordCountryAttempt(name, false);
       showFeedback(`Time's up! It was ${name || '???'}.`, 'incorrect', 4000);
       if(game.currentCountry) {
           if (game.currentCountry.properties?.center) addMarker(game.currentCountry.properties.center, 'orange');
@@ -1159,11 +1200,14 @@
           if (isCorrect) {
               console.log("CORRECT"); playSound('correct'); game.streak++;
               const pts = 100 * game.streak; game.totalScore += pts;
-              showFeedback(`Correct! +${pts} pts. Streak: ${game.streak}`, 'correct', 3000);
+              const justMastered = recordCountryAttempt(countryName, true);
+              const countryStreak = game.progress.countryCorrectStreaks[countryName] || 0;
+              showFeedback(justMastered ? `${countryName} mastered! It will not appear again.` : `Correct! +${pts} pts. Country mastery: ${countryStreak}/${COUNTRY_MASTERY_STREAK}`, 'correct', 3000);
               if (targetCenter) explodeAtLatLng(targetCenter);
               highlightCountry(game.currentCountry); addMarker(coords, 'green');
           } else {
               console.log("INCORRECT"); playSound('wrong'); game.streak = 0;
+              recordCountryAttempt(countryName, false);
               if (countryName !== "Unknown") { game.incorrectlyGuessedCountries.add(countryName); updateMissedCountriesUI(); }
               let dist = 'N/A', pts = 0;
               if (targetCenter) { try { const km = turf.distance(coords, targetCenter, {units:'kilometers'}); dist = km.toFixed(0); pts = Math.max(0, Math.round(100 - km / 50)); } catch(err) { dist = 'Err'; } }
