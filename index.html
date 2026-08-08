@@ -88,6 +88,8 @@
     #trainingMenuBtn:hover { background-color: #f59e0b; }
     #travelMapBtn { background-color: #2176d2; }
     #travelMapBtn:hover { background-color: #2f88ed; }
+    #leaderboardBtn { background-color: #7c3aed; }
+    #leaderboardBtn:hover { background-color: #8b5cf6; }
     #trainingBackBtn, #gameDifficultyBackBtn { background-color: #475569; }
     #trainingBackBtn:hover, #gameDifficultyBackBtn:hover { background-color: #64748b; }
     .mainMenuButton:disabled, .trainingMenuButton:disabled {
@@ -111,6 +113,12 @@
 
     /* --- Footer --- */
     #footer { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.65); font-size: 12px; text-align: center; }
+    #leaderboardList { list-style: none; padding: 0; margin: 14px 0; max-height: 300px; overflow-y: auto; }
+    #leaderboardList li { display: grid; grid-template-columns: 34px 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; margin-bottom: 7px; border-radius: 7px; background: rgba(255,255,255,0.08); text-align: left; }
+    .leaderboardRank { color: #facc15; font-weight: bold; }
+    .leaderboardDetails { color: rgba(255,255,255,0.68); font-size: 12px; }
+    .leaderboardScore { font-size: 18px; font-weight: bold; color: #fff; }
+    #leaderboardEmpty { color: rgba(255,255,255,0.72); margin: 18px 0; }
 
     /* --- Bottom Left Controls --- */
     #bottom-left-controls { position: absolute; bottom: calc(15px + env(safe-area-inset-bottom)); left: 15px; z-index: 3; background: rgba(3, 10, 18, 0.72); padding: 10px 15px; border-radius: 8px; display: flex; align-items: center; gap: 15px; pointer-events: auto; backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.2); }
@@ -303,6 +311,7 @@
       <button id="startBtn" class="mainMenuButton" disabled>Loading Data...</button>
       <button id="trainingMenuBtn" class="mainMenuButton" type="button">Training</button>
       <button id="travelMapBtn" class="mainMenuButton" disabled>My Travel Map</button>
+      <button id="leaderboardBtn" class="mainMenuButton" type="button">Leaderboard</button>
       <div id="lastScore" aria-live="polite">Last score: 0</div>
       <div id="footer">&copy; Guillaume Rico - Creative Forge 2025</div>
     </div>
@@ -326,6 +335,13 @@
         <div id="progressBar"><div id="progressFill"></div></div>
         <div id="progressionNote">Play rounds to earn XP and unlock higher ranks.</div>
       </div>
+    </div>
+    <div id="leaderboardPanel" class="menu-step">
+      <h2 class="menu-step-title">Leaderboard</h2>
+      <div id="leaderboardPlayer"></div>
+      <div id="leaderboardEmpty">Finish a game to record your first score.</div>
+      <ol id="leaderboardList" aria-live="polite"></ol>
+      <button id="leaderboardBackBtn" class="trainingMenuButton" type="button">Back</button>
     </div>
   </div>
 </div>
@@ -367,6 +383,7 @@
   const LOCAL_STORAGE_CURRENT_PLAYER_KEY = 'geospot_current_player';
   const LOCAL_STORAGE_PLAYER_INITIALIZED_KEY = 'geospot_player_initialized';
   const LOCAL_STORAGE_SETTINGS_KEY = 'geospot_settings';
+  const MAX_LEADERBOARD_SCORES = 20;
   const DEFAULT_PLAYER_NAME = 'Player 1';
   const DIFFICULTY_SECONDS = { easy: 30, medium: 20, hard: 15, expert: 10 };
   const SCORE_TO_XP_DIVISOR = 25;
@@ -488,8 +505,8 @@
   // --- MAP & GAME STATE ---
   let map;
   let progressionTitleEl, progressionXpEl, progressFillEl, progressionNoteEl,
-      playerSetupPanelEl, gameMenuPanelEl, gameDifficultyPanelEl, trainingMenuPanelEl, playerNameInputEl,
-      createPlayerBtn, lastScoreEl;
+      playerSetupPanelEl, gameMenuPanelEl, gameDifficultyPanelEl, trainingMenuPanelEl, leaderboardPanelEl, playerNameInputEl,
+      createPlayerBtn, lastScoreEl, leaderboardBtn, leaderboardBackBtn, leaderboardListEl, leaderboardEmptyEl, leaderboardPlayerEl;
   const game = {
     currentMode: 'menu', // 'menu', 'quiz', 'tracker'
     countriesGeoJson: null, countryFeaturesMap: new Map(), currentCountry: null,
@@ -503,7 +520,7 @@
     currentPlayer: DEFAULT_PLAYER_NAME,
     hasPlayerProfile: false,
     players: {},
-    progress: { xp: 0, bestScore: 0, lastScore: 0, gamesPlayed: 0, lastGain: 0 }
+    progress: { xp: 0, bestScore: 0, lastScore: 0, gamesPlayed: 0, lastGain: 0, scores: [] }
   };
 
   // --- SOUND HANDLING ---
@@ -585,6 +602,7 @@
       gameMenuPanelEl?.classList.remove('active');
       gameDifficultyPanelEl?.classList.remove('active');
       trainingMenuPanelEl?.classList.remove('active');
+      leaderboardPanelEl?.classList.remove('active');
       playerNameInputEl?.focus();
   }
 
@@ -593,6 +611,7 @@
       gameMenuPanelEl?.classList.add('active');
       gameDifficultyPanelEl?.classList.remove('active');
       trainingMenuPanelEl?.classList.remove('active');
+      leaderboardPanelEl?.classList.remove('active');
       updatePlayerMenuUI();
       updateProgressionUI();
   }
@@ -602,6 +621,7 @@
       gameMenuPanelEl?.classList.remove('active');
       gameDifficultyPanelEl?.classList.remove('active');
       trainingMenuPanelEl?.classList.add('active');
+      leaderboardPanelEl?.classList.remove('active');
       updateProgressionUI();
   }
 
@@ -609,11 +629,44 @@
       playerSetupPanelEl?.classList.remove('active');
       gameMenuPanelEl?.classList.remove('active');
       trainingMenuPanelEl?.classList.remove('active');
+      leaderboardPanelEl?.classList.remove('active');
       gameDifficultyPanelEl?.classList.add('active');
   }
 
+  function showLeaderboard() {
+      playerSetupPanelEl?.classList.remove('active');
+      gameMenuPanelEl?.classList.remove('active');
+      gameDifficultyPanelEl?.classList.remove('active');
+      trainingMenuPanelEl?.classList.remove('active');
+      leaderboardPanelEl?.classList.add('active');
+      renderLeaderboard();
+  }
+
+  function renderLeaderboard() {
+      if (!leaderboardListEl || !leaderboardEmptyEl || !leaderboardPlayerEl) return;
+      const scores = Array.isArray(game.progress.scores) ? [...game.progress.scores] : [];
+      scores.sort((a, b) => b.score - a.score || b.playedAt - a.playedAt);
+      leaderboardPlayerEl.textContent = `${game.currentPlayer}'s top scores`;
+      leaderboardListEl.innerHTML = '';
+      leaderboardEmptyEl.style.display = scores.length ? 'none' : 'block';
+      scores.slice(0, 10).forEach((entry, index) => {
+          const item = document.createElement('li');
+          const rank = document.createElement('span');
+          const details = document.createElement('span');
+          const score = document.createElement('span');
+          rank.className = 'leaderboardRank';
+          details.className = 'leaderboardDetails';
+          score.className = 'leaderboardScore';
+          rank.textContent = `#${index + 1}`;
+          details.textContent = `${game.currentPlayer} - ${entry.difficulty.charAt(0).toUpperCase() + entry.difficulty.slice(1)} - ${new Date(entry.playedAt).toLocaleDateString()}`;
+          score.textContent = entry.score;
+          item.append(rank, details, score);
+          leaderboardListEl.appendChild(item);
+      });
+  }
+
   function getDefaultProgress() {
-      return { xp: 0, bestScore: 0, lastScore: 0, gamesPlayed: 0, lastGain: 0 };
+      return { xp: 0, bestScore: 0, lastScore: 0, gamesPlayed: 0, lastGain: 0, scores: [] };
   }
 
   function normalizeProgress(progress = {}) {
@@ -622,7 +675,12 @@
           bestScore: Math.max(0, Number(progress.bestScore) || 0),
           lastScore: Math.max(0, Number(progress.lastScore) || 0),
           gamesPlayed: Math.max(0, Number(progress.gamesPlayed) || 0),
-          lastGain: Math.max(0, Number(progress.lastGain) || 0)
+          lastGain: Math.max(0, Number(progress.lastGain) || 0),
+          scores: Array.isArray(progress.scores) ? progress.scores.map(entry => ({
+              score: Math.max(0, Math.round(Number(entry?.score) || 0)),
+              difficulty: DIFFICULTY_SECONDS[entry?.difficulty] ? entry.difficulty : 'medium',
+              playedAt: Number(entry?.playedAt) || Date.now()
+          })).slice(0, MAX_LEADERBOARD_SCORES) : []
       };
   }
 
@@ -689,7 +747,8 @@
               xp: game.progress.xp,
               bestScore: game.progress.bestScore,
               lastScore: game.progress.lastScore,
-              gamesPlayed: game.progress.gamesPlayed
+              gamesPlayed: game.progress.gamesPlayed,
+              scores: game.progress.scores
           }));
       } catch (e) {
           console.error("Error saving progression data:", e);
@@ -746,6 +805,10 @@
       game.progress.lastScore = safeScore;
       game.progress.gamesPlayed += 1;
       game.progress.lastGain = gain;
+      game.progress.scores.unshift({ score: safeScore, difficulty: game.difficulty, playedAt: Date.now() });
+      game.progress.scores = game.progress.scores
+          .sort((a, b) => b.score - a.score || b.playedAt - a.playedAt)
+          .slice(0, MAX_LEADERBOARD_SCORES);
 
       const after = getProgressLevel(game.progress.xp);
       saveProgressionData();
@@ -1248,12 +1311,18 @@
           gameMenuPanelEl = document.getElementById('gameMenuPanel');
           gameDifficultyPanelEl = document.getElementById('gameDifficultyPanel');
           trainingMenuPanelEl = document.getElementById('trainingMenuPanel');
+          leaderboardPanelEl = document.getElementById('leaderboardPanel');
           playerNameInputEl = document.getElementById('playerNameInput');
           createPlayerBtn = document.getElementById('createPlayerBtn');
           lastScoreEl = document.getElementById('lastScore');
+          leaderboardBtn = document.getElementById('leaderboardBtn');
+          leaderboardBackBtn = document.getElementById('leaderboardBackBtn');
+          leaderboardListEl = document.getElementById('leaderboardList');
+          leaderboardEmptyEl = document.getElementById('leaderboardEmpty');
+          leaderboardPlayerEl = document.getElementById('leaderboardPlayer');
 
           // Check essential elements
-          if (!mapContainer || !splashScreen || !startBtn || !beginGameBtn || !gameDifficultyBackBtn || !gameDifficultySelect || !startTrainingBtn || !trainingMenuBtn || !trainingBackBtn || !scoreboardEl || !travelMapBtn || !trackerBackBtn /* Check new button */ || !bottomLeftControls || !trackerLegendEl || !progressionTitleEl || !progressionXpEl || !progressFillEl || !progressionNoteEl || !playerSetupPanelEl || !gameMenuPanelEl || !gameDifficultyPanelEl || !trainingMenuPanelEl || !playerNameInputEl || !createPlayerBtn || !lastScoreEl || !trainingRegionSelect ) {
+          if (!mapContainer || !splashScreen || !startBtn || !beginGameBtn || !gameDifficultyBackBtn || !gameDifficultySelect || !startTrainingBtn || !trainingMenuBtn || !trainingBackBtn || !scoreboardEl || !travelMapBtn || !leaderboardBtn || !leaderboardBackBtn || !leaderboardListEl || !leaderboardEmptyEl || !leaderboardPlayerEl || !trackerBackBtn /* Check new button */ || !bottomLeftControls || !trackerLegendEl || !progressionTitleEl || !progressionXpEl || !progressFillEl || !progressionNoteEl || !playerSetupPanelEl || !gameMenuPanelEl || !gameDifficultyPanelEl || !trainingMenuPanelEl || !leaderboardPanelEl || !playerNameInputEl || !createPlayerBtn || !lastScoreEl || !trainingRegionSelect ) {
               throw new Error("One or more critical UI elements not found!");
           }
           console.log("DOM elements assigned.");
@@ -1291,6 +1360,8 @@
           startTrainingBtn.onclick = () => startGame(true);
           exitGameBtn.onclick = () => { if (game.isGameRunning) { endGame("Game exited early."); } };
           travelMapBtn.onclick = enterTrackerMode;
+          leaderboardBtn.onclick = showLeaderboard;
+          leaderboardBackBtn.onclick = showGameMenu;
           trackerBackBtn.onclick = exitTrackerMode; // ADDED listener for new button
           difficultySelect.onchange = () => { game.difficulty = DIFFICULTY_SECONDS[difficultySelect.value] ? difficultySelect.value : 'medium'; saveSettingsData(); };
           trainingRegionSelect.onchange = () => { game.trainingRegion = TRAINING_REGIONS[trainingRegionSelect.value] ? trainingRegionSelect.value : 'world'; saveSettingsData(); };
